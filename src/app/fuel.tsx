@@ -1,27 +1,22 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 
-import { Card } from '@/components/calculator/Card';
-import { GradientScreen } from '@/components/calculator/GradientScreen';
-import { LabeledSlider } from '@/components/calculator/LabeledSlider';
-import { NumberField } from '@/components/calculator/NumberField';
-import { PlaceholderBanner } from '@/components/calculator/PlaceholderBanner';
-import { ResultBadge } from '@/components/calculator/ResultBadge';
-import { SegmentedControl } from '@/components/calculator/SegmentedControl';
-import { CalculatorColors } from '@/constants/calculator-theme';
+import { Notice } from '@/components/ui/Notice';
+import { NumberField } from '@/components/ui/NumberField';
+import { DataRow, Rule, Stat, StatRow } from '@/components/ui/Readout';
+import { Screen, Section } from '@/components/ui/Screen';
+import { Segment } from '@/components/ui/Segment';
+import { SliderField } from '@/components/ui/SliderField';
 import { useAircraft } from '@/context/aircraft-context';
-import { computeFuelPlan, isaTemperatureC, lookupCruisePerformance } from '@/lib/performance';
+import { computeFuelPlan, lookupCruisePerformance } from '@/lib/performance';
 
 const POWER_LABELS = ['Economy', 'Balanced', 'Performance'];
 
-function formatHoursMinutes(hours: number): string {
+function hoursMinutes(hours: number): string {
   const totalMinutes = Math.round(hours * 60);
-  const h = Math.floor(totalMinutes / 60);
-  const m = totalMinutes % 60;
-  return `${h}h ${String(m).padStart(2, '0')}m`;
+  return `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
 }
 
-export default function FuelPlanningScreen() {
+export default function FuelScreen() {
   const { selectedProfile: profile } = useAircraft();
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
@@ -32,46 +27,45 @@ export default function FuelPlanningScreen() {
   const powerOptions = profile.availablePowerSettings.map((value, index) => ({
     value,
     label: `${value}%`,
-    sublabel: POWER_LABELS[index] ?? undefined,
+    sublabel: POWER_LABELS[index],
   }));
 
-  const isaDeviationC = 0;
-  const outsideAirTempC = isaTemperatureC(altitudeFt) + isaDeviationC;
-  const cruise = lookupCruisePerformance(profile, altitudeFt, isaDeviationC, percentPower);
+  const cruise = lookupCruisePerformance(profile, altitudeFt, 0, percentPower);
 
-  const plan = useMemo(() => {
-    if (!cruise) return null;
-    return computeFuelPlan(profile.usableFuelGal, cruise.fuelFlowGph, cruise.ktas, reserveMinutes);
-  }, [cruise, profile.usableFuelGal, reserveMinutes]);
+  const plan = useMemo(
+    () =>
+      cruise
+        ? computeFuelPlan(profile.usableFuelGal, cruise.fuelFlowGph, cruise.ktas, reserveMinutes)
+        : null,
+    [cruise, profile.usableFuelGal, reserveMinutes]
+  );
 
   const tripHours = cruise && cruise.ktas > 0 ? tripDistanceNm / cruise.ktas : 0;
   const tripFuelGal = cruise ? tripHours * cruise.fuelFlowGph : 0;
-  const reserveGal = plan?.reserveGal ?? 0;
-  const tripFitsWithReserve = tripDistanceNm > 0 && tripFuelGal + reserveGal <= profile.usableFuelGal;
+  const tripPlanned = tripDistanceNm > 0 && cruise !== null;
+  const tripFits = tripPlanned && tripFuelGal + (plan?.reserveGal ?? 0) <= profile.usableFuelGal;
 
   return (
-    <GradientScreen icon="⛽" title="Fuel Planning" footer="For planning only • Verify with POH">
+    <Screen
+      title="Fuel"
+      subtitle={`${profile.shortName}${profile.tailNumber ? ` · ${profile.tailNumber}` : ''}`}
+      footer="Planning only · Verify against the POH">
       {profile.performanceDataSource === 'placeholder' ? (
-        <PlaceholderBanner text="Demo data — built on the placeholder cruise table, not the POH yet." />
+        <Notice tone="warning">Built on the placeholder cruise table — not POH data yet.</Notice>
       ) : null}
 
-      <Card>
-        <LabeledSlider
+      <Section>
+        <SliderField
           label="Altitude"
-          valueLabel={`${altitudeFt.toLocaleString()} ft (${outsideAirTempC.toFixed(1)}°C ISA)`}
+          valueLabel={`${altitudeFt.toLocaleString()} ft`}
           min={0}
           max={profile.serviceCeilingFt}
           step={500}
           value={altitudeFt}
           onChange={setAltitudeFt}
         />
-        <SegmentedControl
-          label="Cruise Power"
-          options={powerOptions}
-          value={percentPower}
-          onChange={setPercentPower}
-        />
-        <LabeledSlider
+        <Segment label="Power" options={powerOptions} value={percentPower} onChange={setPercentPower} />
+        <SliderField
           label="Reserve"
           valueLabel={`${reserveMinutes} min`}
           min={0}
@@ -80,58 +74,40 @@ export default function FuelPlanningScreen() {
           value={reserveMinutes}
           onChange={setReserveMinutes}
         />
-      </Card>
+      </Section>
 
-      <Card>
-        <Text style={styles.cardTitle}>Endurance & Range</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Fuel Flow</Text>
-          <Text style={styles.summaryValue}>{cruise ? `${cruise.fuelFlowGph.toFixed(1)} gph` : '—'}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Endurance (full fuel)</Text>
-          <Text style={styles.summaryValue}>{plan ? formatHoursMinutes(plan.totalEnduranceHours) : '—'}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Reserve Fuel</Text>
-          <Text style={styles.summaryValue}>{plan ? `${plan.reserveGal.toFixed(1)} gal` : '—'}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Usable Endurance (after reserve)</Text>
-          <Text style={styles.summaryValue}>{plan ? formatHoursMinutes(plan.flightEnduranceHours) : '—'}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Range (after reserve)</Text>
-          <Text style={styles.summaryValue}>{plan ? `${Math.round(plan.rangeNm)} nm` : '—'}</Text>
-        </View>
-      </Card>
+      <Rule />
 
-      <Card>
-        <Text style={styles.cardTitle}>Trip Fuel</Text>
-        <NumberField label="Trip Distance" unit="nm" value={tripDistanceNm} onChange={setTripDistanceNm} />
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Time Enroute</Text>
-          <Text style={styles.summaryValue}>{tripDistanceNm > 0 ? formatHoursMinutes(tripHours) : '—'}</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Trip Fuel Burn</Text>
-          <Text style={styles.summaryValue}>{tripDistanceNm > 0 ? `${tripFuelGal.toFixed(1)} gal` : '—'}</Text>
-        </View>
-        {tripDistanceNm > 0 ? (
-          <ResultBadge
-            ok={tripFitsWithReserve}
-            okText="Trip fuel + reserve fits usable fuel"
-            failText="Not enough fuel for this trip + reserve"
-          />
-        ) : null}
-      </Card>
-    </GradientScreen>
+      <StatRow>
+        <Stat label="Burn" value={cruise ? cruise.fuelFlowGph.toFixed(1) : '—'} unit="gph" />
+        <Stat label="Endurance" value={plan ? hoursMinutes(plan.flightEnduranceHours) : '—'} />
+        <Stat label="Range" value={plan ? String(Math.round(plan.rangeNm)) : '—'} unit="nm" />
+      </StatRow>
+
+      <Section label="Breakdown">
+        <DataRow label="Usable fuel" value={`${profile.usableFuelGal} gal`} />
+        <DataRow label="Reserve" value={plan ? `${plan.reserveGal.toFixed(1)} gal` : '—'} />
+        <DataRow
+          label="Endurance on full fuel"
+          value={plan ? hoursMinutes(plan.totalEnduranceHours) : '—'}
+        />
+      </Section>
+
+      <Rule />
+
+      <Section label="Trip">
+        <NumberField label="Distance" unit="nm" value={tripDistanceNm} onChange={setTripDistanceNm} />
+        <DataRow label="Time enroute" value={tripPlanned ? hoursMinutes(tripHours) : '—'} />
+        <DataRow label="Fuel required" value={tripPlanned ? `${tripFuelGal.toFixed(1)} gal` : '—'} />
+      </Section>
+
+      {tripPlanned ? (
+        <Notice tone={tripFits ? 'ok' : 'danger'}>
+          {tripFits
+            ? 'Trip fuel plus reserve fits within usable fuel.'
+            : 'Trip fuel plus reserve exceeds usable fuel.'}
+        </Notice>
+      ) : null}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  cardTitle: { color: CalculatorColors.textPrimary, fontSize: 16, fontWeight: '700' },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  summaryLabel: { color: CalculatorColors.textSecondary, fontSize: 14 },
-  summaryValue: { color: CalculatorColors.textPrimary, fontSize: 14, fontWeight: '700' },
-});

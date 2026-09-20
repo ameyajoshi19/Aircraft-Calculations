@@ -2,70 +2,68 @@ import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router/tabs';
 import type { ColorValue } from 'react-native';
 
+import { useTheme } from '@/design/theme';
+import { fonts } from '@/design/tokens';
+
 const ICONS = {
   index: 'speedometer',
   'weight-balance': 'scale',
   'takeoff-landing': 'airplane',
   fuel: 'water',
-  aircraft: 'list',
+  aircraft: 'options',
 } as const;
 
-function TabIcon({
-  name,
-  focused,
-  color,
-}: {
-  name: keyof typeof ICONS;
-  focused: boolean;
-  color: ColorValue;
-}) {
-  const iconName = focused ? ICONS[name] : (`${ICONS[name]}-outline` as const);
-  return <Ionicons name={iconName} size={22} color={color} />;
+type Route = keyof typeof ICONS;
+
+const TITLES: Record<Route, string> = {
+  index: 'Cruise',
+  'weight-balance': 'W&B',
+  'takeoff-landing': 'Takeoff',
+  fuel: 'Fuel',
+  aircraft: 'Aircraft',
+};
+
+function TabIcon({ name, focused, color }: { name: Route; focused: boolean; color: ColorValue }) {
+  return (
+    <Ionicons
+      name={focused ? ICONS[name] : (`${ICONS[name]}-outline` as const)}
+      size={21}
+      color={color as string}
+    />
+  );
 }
 
 export default function AppTabs() {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#5B6EE1',
-        tabBarInactiveTintColor: '#9AA0AC',
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.faint,
+        tabBarStyle: {
+          backgroundColor: colors.canvas,
+          borderTopColor: colors.hairline,
+          borderTopWidth: 1,
+          elevation: 0,
+        },
+        tabBarLabelStyle: {
+          fontFamily: fonts.medium,
+          fontSize: 10,
+          letterSpacing: 0.2,
+        },
       }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Cruise',
-          tabBarIcon: (props) => <TabIcon name="index" {...props} />,
-        }}
-      />
-      <Tabs.Screen
-        name="weight-balance"
-        options={{
-          title: 'W&B',
-          tabBarIcon: (props) => <TabIcon name="weight-balance" {...props} />,
-        }}
-      />
-      <Tabs.Screen
-        name="takeoff-landing"
-        options={{
-          title: 'Takeoff/Ldg',
-          tabBarIcon: (props) => <TabIcon name="takeoff-landing" {...props} />,
-        }}
-      />
-      <Tabs.Screen
-        name="fuel"
-        options={{
-          title: 'Fuel',
-          tabBarIcon: (props) => <TabIcon name="fuel" {...props} />,
-        }}
-      />
-      <Tabs.Screen
-        name="aircraft"
-        options={{
-          title: 'Aircraft',
-          tabBarIcon: (props) => <TabIcon name="aircraft" {...props} />,
-        }}
-      />
+      {(Object.keys(ICONS) as Route[]).map((route) => (
+        <Tabs.Screen
+          key={route}
+          name={route}
+          options={{
+            title: TITLES[route],
+            tabBarIcon: (props) => <TabIcon name={route} {...props} />,
+          }}
+        />
+      ))}
     </Tabs>
   );
 }

@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 
-import { Card } from '@/components/calculator/Card';
-import { GradientScreen } from '@/components/calculator/GradientScreen';
-import { LabeledSlider } from '@/components/calculator/LabeledSlider';
-import { NumberField } from '@/components/calculator/NumberField';
-import { PlaceholderBanner } from '@/components/calculator/PlaceholderBanner';
-import { CalculatorColors } from '@/constants/calculator-theme';
+import { Notice } from '@/components/ui/Notice';
+import { NumberField } from '@/components/ui/NumberField';
+import { Rule, Stat, StatRow } from '@/components/ui/Readout';
+import { Screen, Section } from '@/components/ui/Screen';
+import { SliderField } from '@/components/ui/SliderField';
 import { useAircraft } from '@/context/aircraft-context';
 import { isaTemperatureC, lookupFieldPerformance } from '@/lib/performance';
 
@@ -23,14 +21,19 @@ export default function TakeoffLandingScreen() {
   const landing = lookupFieldPerformance(profile.landingTable, altitudeFt, isaDeviationC, weightLbs, windKts);
 
   return (
-    <GradientScreen icon="🛫" title="Takeoff & Landing" footer="For planning only • Verify with POH">
+    <Screen
+      title="Takeoff & Landing"
+      subtitle={`${profile.shortName}${profile.tailNumber ? ` · ${profile.tailNumber}` : ''}`}
+      footer="Planning only · Verify against the POH">
       {profile.performanceDataSource === 'placeholder' ? (
-        <PlaceholderBanner text="Demo data — distance tables are placeholder, not from the POH yet." />
+        <Notice tone="warning">
+          Placeholder distance tables, and a generic wind correction — neither is from the POH yet.
+        </Notice>
       ) : null}
 
-      <Card>
-        <LabeledSlider
-          label="Pressure Altitude"
+      <Section>
+        <SliderField
+          label="Pressure altitude"
           valueLabel={`${altitudeFt.toLocaleString()} ft`}
           min={0}
           max={Math.min(profile.serviceCeilingFt, 10000)}
@@ -38,71 +41,58 @@ export default function TakeoffLandingScreen() {
           value={altitudeFt}
           onChange={setAltitudeFt}
         />
-        <LabeledSlider
+        <SliderField
           label="Temperature"
-          valueLabel={`ISA ${isaDeviationC >= 0 ? '+' : ''}${isaDeviationC}°C (${outsideAirTempC.toFixed(1)}°C)`}
+          valueLabel={`ISA ${isaDeviationC >= 0 ? '+' : ''}${isaDeviationC}°`}
+          hint={`${outsideAirTempC.toFixed(1)}°C`}
           min={-20}
           max={30}
           step={1}
           value={isaDeviationC}
           onChange={setIsaDeviationC}
         />
-        <NumberField
-          label="Weight"
-          unit="lbs"
-          value={weightLbs}
-          onChange={(value) => setWeightLbs(Math.min(Math.max(value, 0), profile.maxGrossWeightLbs))}
-        />
-        <LabeledSlider
-          label="Wind (+head / -tail)"
+        <SliderField
+          label="Wind component"
           valueLabel={`${windKts >= 0 ? '+' : ''}${windKts} kt`}
+          hint={windKts >= 0 ? 'headwind' : 'tailwind'}
           min={-10}
           max={20}
           step={1}
           value={windKts}
           onChange={setWindKts}
         />
-      </Card>
+        <NumberField
+          label="Weight"
+          unit="lb"
+          max={profile.maxGrossWeightLbs}
+          value={weightLbs}
+          onChange={setWeightLbs}
+        />
+      </Section>
 
-      <Card>
-        <Text style={styles.cardTitle}>Takeoff</Text>
-        <View style={styles.row}>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>Ground Roll</Text>
-            <Text style={styles.statValue}>{takeoff ? takeoff.groundRollFt.toLocaleString() : '—'} ft</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>Over 50 ft Obstacle</Text>
-            <Text style={styles.statValue}>
-              {takeoff ? takeoff.distanceOver50ftFt.toLocaleString() : '—'} ft
-            </Text>
-          </View>
-        </View>
-      </Card>
+      <Rule />
 
-      <Card>
-        <Text style={styles.cardTitle}>Landing</Text>
-        <View style={styles.row}>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>Ground Roll</Text>
-            <Text style={styles.statValue}>{landing ? landing.groundRollFt.toLocaleString() : '—'} ft</Text>
-          </View>
-          <View style={styles.stat}>
-            <Text style={styles.statLabel}>Over 50 ft Obstacle</Text>
-            <Text style={styles.statValue}>
-              {landing ? landing.distanceOver50ftFt.toLocaleString() : '—'} ft
-            </Text>
-          </View>
-        </View>
-      </Card>
-    </GradientScreen>
+      <Section label="Takeoff">
+        <StatRow>
+          <Stat label="Ground roll" value={takeoff ? takeoff.groundRollFt.toLocaleString() : '—'} unit="ft" />
+          <Stat
+            label="Over 50 ft"
+            value={takeoff ? takeoff.distanceOver50ftFt.toLocaleString() : '—'}
+            unit="ft"
+          />
+        </StatRow>
+      </Section>
+
+      <Section label="Landing">
+        <StatRow>
+          <Stat label="Ground roll" value={landing ? landing.groundRollFt.toLocaleString() : '—'} unit="ft" />
+          <Stat
+            label="Over 50 ft"
+            value={landing ? landing.distanceOver50ftFt.toLocaleString() : '—'}
+            unit="ft"
+          />
+        </StatRow>
+      </Section>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  cardTitle: { color: CalculatorColors.textPrimary, fontSize: 16, fontWeight: '700' },
-  row: { flexDirection: 'row', gap: 12 },
-  stat: { flex: 1, gap: 2 },
-  statLabel: { color: CalculatorColors.textSecondary, fontSize: 12 },
-  statValue: { color: CalculatorColors.textPrimary, fontSize: 20, fontWeight: '800' },
-});

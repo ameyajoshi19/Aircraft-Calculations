@@ -21,7 +21,7 @@ import type { AircraftProfile } from '@/types/aircraft';
 const cessna172sp: AircraftProfile = {
   id: 'c172sp-g1000',
   tailNumber: 'N234FF',
-  displayName: 'C172SP Cruise Advisor',
+  shortName: 'C172SP',
   model: 'Cessna 172SP G1000 (Skyhawk)',
 
   engineHp: 180,
@@ -29,7 +29,7 @@ const cessna172sp: AircraftProfile = {
   serviceCeilingFt: 14000,
 
   emptyWeightLbs: 1680,
-  emptyWeightArm: 41.0,
+  emptyWeightArm: 39.0,
   maxGrossWeightLbs: 2550,
   usableFuelGal: 53,
   fuelLbsPerGal: 6,
@@ -81,7 +81,7 @@ const cessna172sp: AircraftProfile = {
 const cessna182t: AircraftProfile = {
   id: 'c182t-g1000',
   tailNumber: 'N32LP',
-  displayName: 'C182T Cruise Advisor',
+  shortName: 'C182T',
   model: 'Cessna 182T G1000 (Skylane)',
 
   engineHp: 230,

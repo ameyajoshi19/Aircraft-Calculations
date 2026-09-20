@@ -46,7 +46,8 @@ export interface FieldPerformanceDataPoint {
 export interface AircraftProfile {
   id: string;
   tailNumber?: string;
-  displayName: string;
+  /** Compact type designation shown in screen subtitles, e.g. "C182T". */
+  shortName: string;
   model: string;
 
   engineHp: number;

@@ -1,12 +1,9 @@
 import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
 
-import { Card } from '@/components/calculator/Card';
-import { GradientScreen } from '@/components/calculator/GradientScreen';
-import { NumberField } from '@/components/calculator/NumberField';
-import { PlaceholderBanner } from '@/components/calculator/PlaceholderBanner';
-import { ResultBadge } from '@/components/calculator/ResultBadge';
-import { CalculatorColors, CalculatorSpacing } from '@/constants/calculator-theme';
+import { Notice } from '@/components/ui/Notice';
+import { DataRow, Rule, Stat, StatRow } from '@/components/ui/Readout';
+import { NumberField } from '@/components/ui/NumberField';
+import { Screen, Section } from '@/components/ui/Screen';
 import { useAircraft } from '@/context/aircraft-context';
 import { computeWeightAndBalance } from '@/lib/performance';
 
@@ -20,89 +17,75 @@ export default function WeightBalanceScreen() {
     [profile, stationWeights, fuelGal]
   );
 
+  const overGross = !result.withinGrossWeight;
+  const outOfEnvelope = !result.withinEnvelope;
+
   return (
-    <GradientScreen icon="⚖️" title="Weight & Balance" footer="For planning only • Verify with POH">
+    <Screen
+      title="Weight & Balance"
+      subtitle={`${profile.shortName}${profile.tailNumber ? ` · ${profile.tailNumber}` : ''}`}
+      footer="Planning only · Verify against the POH">
       {profile.weightBalanceDataSource === 'placeholder' ? (
-        <PlaceholderBanner text="Demo data — arms, envelope and stations are placeholder, not from the POH yet." />
+        <Notice tone="warning">
+          Placeholder arms, envelope and empty weight — not yet taken from the POH or this
+          aircraft&apos;s weighing record.
+        </Notice>
       ) : null}
 
-      <Card>
-        <Text style={styles.cardTitle}>Empty Aircraft</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Weight</Text>
-          <Text style={styles.summaryValue}>{profile.emptyWeightLbs.toLocaleString()} lbs</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Arm</Text>
-          <Text style={styles.summaryValue}>{profile.emptyWeightArm.toFixed(1)} in</Text>
-        </View>
-      </Card>
-
-      <Card>
-        <Text style={styles.cardTitle}>Load Stations</Text>
+      <Section label="Load">
         {profile.stations.map((station) => (
           <NumberField
             key={station.id}
             label={station.label}
-            unit="lbs"
+            unit="lb"
+            max={station.maxWeight}
             value={stationWeights[station.id] ?? 0}
-            onChange={(value) =>
-              setStationWeights((prev) => ({
-                ...prev,
-                [station.id]: station.maxWeight ? Math.min(value, station.maxWeight) : value,
-              }))
-            }
+            onChange={(value) => setStationWeights((prev) => ({ ...prev, [station.id]: value }))}
           />
         ))}
         <NumberField
           label="Fuel"
           unit="gal"
+          max={profile.usableFuelGal}
           value={fuelGal}
-          onChange={(value) => setFuelGal(Math.min(Math.max(value, 0), profile.usableFuelGal))}
+          onChange={setFuelGal}
         />
-      </Card>
+      </Section>
 
-      <Card>
-        <Text style={styles.cardTitle}>Result</Text>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Total Weight</Text>
-          <Text style={styles.summaryValue}>{result.totalWeightLbs.toLocaleString()} lbs</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>CG</Text>
-          <Text style={styles.summaryValue}>{result.cgInches.toFixed(2)} in</Text>
-        </View>
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryLabel}>Envelope Limits</Text>
-          <Text style={styles.summaryValue}>
-            {result.forwardLimitInches.toFixed(1)}–{result.aftLimitInches.toFixed(1)} in
-          </Text>
-        </View>
+      <Rule />
 
-        <View style={styles.badgeRow}>
-          <ResultBadge
-            ok={result.withinGrossWeight}
-            okText={`Within max gross (${profile.maxGrossWeightLbs.toLocaleString()} lbs)`}
-            failText={`Over max gross (${profile.maxGrossWeightLbs.toLocaleString()} lbs)`}
-          />
-          <ResultBadge ok={result.withinEnvelope} okText="CG within envelope" failText="CG out of envelope" />
-        </View>
-      </Card>
-    </GradientScreen>
+      <StatRow>
+        <Stat label="Weight" value={result.totalWeightLbs.toLocaleString()} unit="lb" />
+        <Stat label="CG" value={result.cgInches.toFixed(2)} unit="in" />
+      </StatRow>
+
+      <Section label="Detail">
+        <DataRow
+          label="CG limits at this weight"
+          value={`${result.forwardLimitInches.toFixed(1)} – ${result.aftLimitInches.toFixed(1)} in`}
+          tone={outOfEnvelope ? 'danger' : 'ink'}
+        />
+        <DataRow
+          label="Empty weight"
+          value={`${profile.emptyWeightLbs.toLocaleString()} lb @ ${profile.emptyWeightArm.toFixed(1)} in`}
+        />
+        <DataRow label="Max gross" value={`${profile.maxGrossWeightLbs.toLocaleString()} lb`} />
+        <DataRow
+          label="Margin to gross"
+          value={`${(profile.maxGrossWeightLbs - result.totalWeightLbs).toLocaleString()} lb`}
+          tone={overGross ? 'danger' : 'ink'}
+        />
+      </Section>
+
+      <Notice tone={overGross || outOfEnvelope ? 'danger' : 'ok'}>
+        {overGross && outOfEnvelope
+          ? 'Over max gross weight and CG outside the envelope.'
+          : overGross
+            ? 'Over max gross weight.'
+            : outOfEnvelope
+              ? 'CG outside the envelope for this weight.'
+              : 'Within max gross weight and CG envelope.'}
+      </Notice>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  cardTitle: {
-    color: CalculatorColors.textPrimary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  summaryLabel: { color: CalculatorColors.textSecondary, fontSize: 14 },
-  summaryValue: { color: CalculatorColors.textPrimary, fontSize: 14, fontWeight: '700' },
-  badgeRow: { gap: CalculatorSpacing.sm },
-});
