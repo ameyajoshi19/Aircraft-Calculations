@@ -10,7 +10,7 @@ const ICONS = {
   'weight-balance': 'scale',
   'takeoff-landing': 'airplane',
   fuel: 'water',
-  aircraft: 'options',
+  aircraft: 'list',
 } as const;
 
 type Route = keyof typeof ICONS;
@@ -27,7 +27,7 @@ function TabIcon({ name, focused, color }: { name: Route; focused: boolean; colo
   return (
     <Ionicons
       name={focused ? ICONS[name] : (`${ICONS[name]}-outline` as const)}
-      size={21}
+      size={24}
       color={color as string}
     />
   );
@@ -41,7 +41,10 @@ export default function AppTabs() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
-        tabBarInactiveTintColor: colors.faint,
+        // `muted`, not `faint`: faint on canvas is ~2.3:1, below the 3:1
+        // minimum for UI elements, and thin icon strokes washed out at
+        // small sizes.
+        tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
           backgroundColor: colors.canvas,
           borderTopColor: colors.hairline,
@@ -50,7 +53,7 @@ export default function AppTabs() {
         },
         tabBarLabelStyle: {
           fontFamily: fonts.medium,
-          fontSize: 10,
+          fontSize: 11,
           letterSpacing: 0.2,
         },
       }}>
