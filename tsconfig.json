@@ -2,6 +2,10 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    // scripts/check-poh.ts runs under plain Node, which requires explicit
+    // file extensions on relative imports.
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "paths": {
       "@/*": [
         "./src/*"
