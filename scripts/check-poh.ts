@@ -14,18 +14,10 @@ import {
   C182T_BAGGAGE_LIMITS,
   C182T_STATIONS,
   C182T_USABLE_FUEL_ARM_IN,
+  POH_CORRECTIONS,
   c182tPohBase as c182tPoh,
 } from '../src/data/poh/c182t.ts';
 import type { FieldWeightBlock } from '../src/data/poh/types.ts';
-
-/**
- * Violations that the printed POH itself contains. Listed here so they are
- * reported separately instead of either failing the run or being silently
- * normalised away in the data. See POH_ANOMALIES for the full write-up.
- */
-const KNOWN_POH_ANOMALIES = [
-  'landing 2950 lb / 0°C / 0->1000 ft: 50 ft distance shrank with altitude (1300 -> 1265)',
-];
 
 const problems: string[] = [];
 let checks = 0;
@@ -270,6 +262,28 @@ for (let i = 1; i < C182T_BAGGAGE_LIMITS.areas.length; i++) {
   );
 }
 
+// --- Declared corrections ---------------------------------------------------
+// Each entry in POH_CORRECTIONS must actually be present in the data, and must
+// be conservative relative to the printed value. This keeps a correction from
+// silently drifting out of the tables, or from being used to shorten a
+// distance below what the book says.
+
+for (const correction of POH_CORRECTIONS) {
+  const table = correction.table === 'landing' ? c182tPoh.landing : c182tPoh.takeoff;
+  const block = table.find((b) => b.weightLbs === correction.weightLbs);
+  const row = block?.byOatC[correction.oatC]?.find((r) => r[0] === correction.altitudeFt);
+  const actual = row ? (correction.field === 'over50ftFt' ? row[2] : row[1]) : undefined;
+
+  check(
+    actual === correction.storedValue,
+    `POH_CORRECTIONS ${correction.table} ${correction.altitudeFt} ft / ${correction.oatC}°C: data holds ${actual}, correction declares ${correction.storedValue}`
+  );
+  check(
+    correction.storedValue > correction.printedValue,
+    `POH_CORRECTIONS ${correction.table} ${correction.altitudeFt} ft / ${correction.oatC}°C: ${correction.storedValue} is not conservative against the printed ${correction.printedValue}`
+  );
+}
+
 // --- Report -----------------------------------------------------------------
 const cruiseCells = c182tCruise.reduce(
   (n, b) => n + b.rows.reduce((m, r) => m + [r[2], r[3], r[4]].filter(Boolean).length, 0),
@@ -278,28 +292,20 @@ const cruiseCells = c182tCruise.reduce(
 
 console.log(`Checked ${checks} assertions over ${cruiseCells} transcribed cruise cells.`);
 
-const expected = problems.filter((p) => KNOWN_POH_ANOMALIES.includes(p));
-const unexpected = problems.filter((p) => !KNOWN_POH_ANOMALIES.includes(p));
-const missingAnomalies = KNOWN_POH_ANOMALIES.filter((a) => !problems.includes(a));
-
-if (expected.length > 0) {
-  console.log(`\n${expected.length} known POH anomaly/anomalies (in the book, not the transcription):`);
-  for (const p of expected) console.log(`  ~ ${p}`);
+if (POH_CORRECTIONS.length > 0) {
+  console.log(`\n${POH_CORRECTIONS.length} cell(s) deliberately differ from the printed POH:`);
+  for (const c of POH_CORRECTIONS) {
+    console.log(
+      `  ~ p.${c.page} ${c.table} ${c.altitudeFt} ft / ${c.oatC}°C ${c.field}: ` +
+        `book ${c.printedValue} -> stored ${c.storedValue}`
+    );
+  }
 }
 
-// If a listed anomaly stops firing, the data changed underneath it — that
-// needs looking at, not ignoring.
-if (missingAnomalies.length > 0) {
-  console.error(`\n${missingAnomalies.length} known anomaly/anomalies no longer detected — data changed?`);
-  for (const a of missingAnomalies) console.error(`  ? ${a}`);
-}
-
-if (unexpected.length === 0 && missingAnomalies.length === 0) {
+if (problems.length === 0) {
   console.log('\nAll consistency checks passed.');
 } else {
-  if (unexpected.length > 0) {
-    console.error(`\n${unexpected.length} problem(s) found:\n`);
-    for (const p of unexpected) console.error(`  - ${p}`);
-  }
+  console.error(`\n${problems.length} problem(s) found:\n`);
+  for (const p of problems) console.error(`  - ${p}`);
   process.exit(1);
 }

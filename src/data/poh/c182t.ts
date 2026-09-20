@@ -8,32 +8,36 @@
 import type { ClimbRow, FieldWeightBlock, PohDocument } from './types';
 
 /**
- * Anomalies present in the printed POH itself, transcribed as-is.
+ * Cells where the stored value deliberately DIFFERS from the printed POH.
  *
- * These are NOT transcription errors — a clean scan of the page confirms the
- * book prints these values. They are recorded so the app can warn rather
- * than quietly interpolate through them, and so nobody "fixes" the data
- * later by substituting a nicer-looking number.
+ * These are judgement calls made by the aircraft's operator, not
+ * transcription. Each one records what the book prints, what is stored
+ * instead, and why — so the difference stays auditable, and so anyone
+ * cross-checking the app against their own POH can see exactly where and
+ * why the two disagree rather than assuming the app is broken.
  *
- * Every other cell in this table rises with altitude and with temperature.
- * This one does not, and it errs in the unsafe direction: an interpolation
- * crossing it returns a *shorter* landing distance than the same conditions
- * at sea level. Callers should take the conservative neighbour.
+ * Any correction must move in the conservative direction (a longer
+ * distance, a lower speed, a higher fuel burn). A correction that made a
+ * number more optimistic than the book would not belong here at all.
  */
-export const POH_ANOMALIES = [
+export const POH_CORRECTIONS = [
   {
     page: '5-37',
     table: 'landing',
     weightLbs: 2950,
     altitudeFt: 1000,
     oatC: 0,
-    field: 'over50ftFt',
+    field: 'over50ftFt' as const,
     printedValue: 1265,
-    issue:
-      'Non-monotonic: 1265 ft at 1000 ft is shorter than the 1300 ft at sea level, ' +
-      'while the 10°C column rises 1335 -> 1365 across the same step. Likely a misprint ' +
-      'in the book (1365 appears directly to its right), but it is what the POH says. ' +
-      'Verify against a later revision before relying on it.',
+    storedValue: 1335,
+    rationale:
+      'The printed 1265 ft is shorter than the 1300 ft at sea level, which no landing ' +
+      'distance can be: every other cell on the page rises with both altitude and ' +
+      'temperature. Treated as a misprint. 1335 continues the 0°C column\'s step pattern ' +
+      '(35, 35, 40, 40, 35, 45, 45, 50 ft per 1000 ft) and keeps the distance-to-ground-roll ' +
+      'ratio smooth at 2.32 / 2.30 / 2.28, where the printed value gives an outlier 2.18. ' +
+      'It is also longer than the printed figure, so it errs conservatively.',
+    authorisedBy: 'Aircraft operator, after reviewing a clean scan of page 5-37.',
   },
 ] as const;
 
@@ -153,9 +157,9 @@ const landing: FieldWeightBlock[] = [
     overObstacleKias: 60,
     byOatC: {
       0: [
-        // 1000 ft / 0°C reads 1265 in the book — lower than the 1300 at sea
-        // level. See POH_ANOMALIES: transcribed as printed, not corrected.
-        [0, 560, 1300], [1000, 580, 1265], [2000, 600, 1370], [3000, 625, 1410],
+        // 1000 ft / 0°C: the book prints 1265, which is shorter than sea
+        // level and cannot be right. Stored as 1335 — see POH_CORRECTIONS.
+        [0, 560, 1300], [1000, 580, 1335], [2000, 600, 1370], [3000, 625, 1410],
         [4000, 650, 1450], [5000, 670, 1485], [6000, 700, 1530], [7000, 725, 1575],
         [8000, 755, 1625],
       ],
