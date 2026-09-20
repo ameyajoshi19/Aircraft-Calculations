@@ -8,17 +8,19 @@
 import type { ClimbRow, FieldWeightBlock, PohDocument } from './types';
 
 /**
- * A cell that is NOT a transcription: it was interpolated from its
- * neighbours and accepted by the aircraft's operator, because the source
- * image reads "1265" — which would make the 50 ft distance *shorter* at
- * 1000 ft than the 1300 at sea level, while every neighbouring cell
- * increases. 1335 sits exactly midway between the 1300 at sea level and the
- * 1370 at 2000 ft and matches the +35 ft/1000 ft trend of the 10°C column.
+ * Anomalies present in the printed POH itself, transcribed as-is.
  *
- * It should still be replaced by a clean read of page 5-37 before anyone
- * plans a short field landing on it.
+ * These are NOT transcription errors — a clean scan of the page confirms the
+ * book prints these values. They are recorded so the app can warn rather
+ * than quietly interpolate through them, and so nobody "fixes" the data
+ * later by substituting a nicer-looking number.
+ *
+ * Every other cell in this table rises with altitude and with temperature.
+ * This one does not, and it errs in the unsafe direction: an interpolation
+ * crossing it returns a *shorter* landing distance than the same conditions
+ * at sea level. Callers should take the conservative neighbour.
  */
-export const INFERRED_FIELD_CELLS = [
+export const POH_ANOMALIES = [
   {
     page: '5-37',
     table: 'landing',
@@ -26,14 +28,13 @@ export const INFERRED_FIELD_CELLS = [
     altitudeFt: 1000,
     oatC: 0,
     field: 'over50ftFt',
-    value: 1335,
-    basis: 'Interpolated between sea level (1300) and 2000 ft (1370); source image unreadable.',
+    printedValue: 1265,
+    issue:
+      'Non-monotonic: 1265 ft at 1000 ft is shorter than the 1300 ft at sea level, ' +
+      'while the 10°C column rises 1335 -> 1365 across the same step. Likely a misprint ' +
+      'in the book (1365 appears directly to its right), but it is what the POH says. ' +
+      'Verify against a later revision before relying on it.',
   },
-] as const;
-
-/** Still unread: covered by the page-number overlay on the only image of page 5-37. */
-export const UNREADABLE_FIELD_CELLS = [
-  { page: '5-37', table: 'landing', weightLbs: 2950, altitudeFt: 2000, oatC: 40, field: 'over50ftFt' },
 ] as const;
 
 /**
@@ -152,8 +153,9 @@ const landing: FieldWeightBlock[] = [
     overObstacleKias: 60,
     byOatC: {
       0: [
-        // 1000 ft / 0°C: see INFERRED_FIELD_CELLS — 1335 is interpolated, not read.
-        [0, 560, 1300], [1000, 580, 1335], [2000, 600, 1370], [3000, 625, 1410],
+        // 1000 ft / 0°C reads 1265 in the book — lower than the 1300 at sea
+        // level. See POH_ANOMALIES: transcribed as printed, not corrected.
+        [0, 560, 1300], [1000, 580, 1265], [2000, 600, 1370], [3000, 625, 1410],
         [4000, 650, 1450], [5000, 670, 1485], [6000, 700, 1530], [7000, 725, 1575],
         [8000, 755, 1625],
       ],
@@ -173,7 +175,7 @@ const landing: FieldWeightBlock[] = [
         [8000, 835, 1760],
       ],
       40: [
-        [0, 640, 1435], [1000, 665, 1475], [2000, 690, null], [3000, 715, 1560],
+        [0, 640, 1435], [1000, 665, 1475], [2000, 690, 1515], [3000, 715, 1560],
         [4000, 740, 1600], [5000, 770, 1650], [6000, 800, 1700], [7000, 830, 1750],
         [8000, 865, 1805],
       ],

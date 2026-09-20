@@ -18,6 +18,15 @@ import {
 } from '../src/data/poh/c182t.ts';
 import type { FieldWeightBlock } from '../src/data/poh/types.ts';
 
+/**
+ * Violations that the printed POH itself contains. Listed here so they are
+ * reported separately instead of either failing the run or being silently
+ * normalised away in the data. See POH_ANOMALIES for the full write-up.
+ */
+const KNOWN_POH_ANOMALIES = [
+  'landing 2950 lb / 0°C / 0->1000 ft: 50 ft distance shrank with altitude (1300 -> 1265)',
+];
+
 const problems: string[] = [];
 let checks = 0;
 
@@ -269,10 +278,28 @@ const cruiseCells = c182tCruise.reduce(
 
 console.log(`Checked ${checks} assertions over ${cruiseCells} transcribed cruise cells.`);
 
-if (problems.length === 0) {
-  console.log('All consistency checks passed.');
+const expected = problems.filter((p) => KNOWN_POH_ANOMALIES.includes(p));
+const unexpected = problems.filter((p) => !KNOWN_POH_ANOMALIES.includes(p));
+const missingAnomalies = KNOWN_POH_ANOMALIES.filter((a) => !problems.includes(a));
+
+if (expected.length > 0) {
+  console.log(`\n${expected.length} known POH anomaly/anomalies (in the book, not the transcription):`);
+  for (const p of expected) console.log(`  ~ ${p}`);
+}
+
+// If a listed anomaly stops firing, the data changed underneath it — that
+// needs looking at, not ignoring.
+if (missingAnomalies.length > 0) {
+  console.error(`\n${missingAnomalies.length} known anomaly/anomalies no longer detected — data changed?`);
+  for (const a of missingAnomalies) console.error(`  ? ${a}`);
+}
+
+if (unexpected.length === 0 && missingAnomalies.length === 0) {
+  console.log('\nAll consistency checks passed.');
 } else {
-  console.error(`\n${problems.length} problem(s) found:\n`);
-  for (const p of problems) console.error(`  - ${p}`);
+  if (unexpected.length > 0) {
+    console.error(`\n${unexpected.length} problem(s) found:\n`);
+    for (const p of unexpected) console.error(`  - ${p}`);
+  }
   process.exit(1);
 }
