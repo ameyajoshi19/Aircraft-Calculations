@@ -1,8 +1,12 @@
 /**
- * Data model for an aircraft's POH-derived performance and weight & balance
- * figures. `dataSource: 'placeholder'` marks tables that hold demo values
- * only (not from a real POH) so the UI can warn the pilot not to rely on them.
+ * Data model for an aircraft the app can compute with.
+ *
+ * Performance tables use the same shapes the POH itself uses (see
+ * `data/poh/types.ts`), so real transcriptions and placeholder stand-ins
+ * flow through one code path. `dataSource: 'placeholder'` marks an aircraft
+ * whose numbers are demo values, so every screen can warn on it.
  */
+import type { CruiseAltitudeBlock, FieldWeightBlock } from '@/data/poh/types';
 
 export type DataSource = 'placeholder' | 'poh';
 
@@ -11,36 +15,31 @@ export interface WeightBalanceStation {
   label: string;
   /** Arm, inches aft of datum. */
   arm: number;
-  /** Optional per-station weight limit (e.g. baggage compartment max). */
+  /** Per-station weight limit, e.g. a baggage compartment maximum. */
   maxWeight?: number;
 }
 
-/** One row of a CG envelope: at this weight, CG must fall within [forwardArm, aftArm]. */
+/** At this weight, CG must fall within [forwardArm, aftArm]. */
 export interface EnvelopePoint {
   weight: number;
   forwardArm: number;
   aftArm: number;
 }
 
-/** One sampled point from a POH cruise performance table. */
-export interface CruiseDataPoint {
-  pressureAltitudeFt: number;
-  /** Degrees C relative to ISA standard temperature at this altitude. */
-  isaDeviationC: number;
-  percentPower: number;
-  rpm: number;
-  manifoldPressureInHg: number;
-  ktas: number;
-  fuelFlowGph: number;
+/**
+ * A limit spanning several stations at once — the 182T caps baggage areas
+ * A+B+C at 200 lb and B+C at 80 lb, which per-station maximums cannot say.
+ */
+export interface CombinedWeightLimit {
+  stationIds: string[];
+  maxWeightLbs: number;
+  label: string;
 }
 
-/** One sampled point from a POH takeoff or landing distance table. */
-export interface FieldPerformanceDataPoint {
-  pressureAltitudeFt: number;
-  isaDeviationC: number;
-  weightLbs: number;
-  groundRollFt: number;
-  distanceOver50ftFt: number;
+/** An RPM the cruise dropdown offers, with the POH-free label the pilot sees. */
+export interface RpmPreset {
+  rpm: number;
+  label?: string;
 }
 
 export interface AircraftProfile {
@@ -57,21 +56,24 @@ export interface AircraftProfile {
   emptyWeightLbs: number;
   emptyWeightArm: number;
   maxGrossWeightLbs: number;
+  maxLandingWeightLbs: number;
   usableFuelGal: number;
   fuelLbsPerGal: number;
   fuelArm: number;
 
   stations: WeightBalanceStation[];
   envelope: EnvelopePoint[];
+  combinedWeightLimits: CombinedWeightLimit[];
 
-  /** Discrete %power settings the cruise UI lets the pilot pick between. */
-  availablePowerSettings: number[];
-  cruiseTable: CruiseDataPoint[];
-  takeoffTable: FieldPerformanceDataPoint[];
-  landingTable: FieldPerformanceDataPoint[];
+  cruise: readonly CruiseAltitudeBlock[];
+  rpmPresets: RpmPreset[];
+  takeoff: readonly FieldWeightBlock[];
+  landing: readonly FieldWeightBlock[];
 
   performanceDataSource: DataSource;
   weightBalanceDataSource: DataSource;
-  /** Free-text note shown in the Aircraft screen, e.g. POH revision date once real data lands. */
+  /** POH document number, once the data comes from a real book. */
+  pohDocumentNumber?: string;
+  /** Shown on the Aircraft screen to explain where the numbers came from. */
   sourceNote: string;
 }

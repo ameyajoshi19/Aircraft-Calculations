@@ -113,7 +113,7 @@ function evaluateBlock(block: CruiseAltitudeBlock, rpm: number, oatC: number, re
  * figure read at an MP one of the sheets never publishes.
  */
 function evaluate(
-  blocks: CruiseAltitudeBlock[],
+  blocks: readonly CruiseAltitudeBlock[],
   rpm: number,
   altitudeFt: number,
   oatC: number,
@@ -151,7 +151,7 @@ function evaluate(
 }
 
 /** The RPM values the POH tabulates, lowest first. */
-export function availableRpms(blocks: CruiseAltitudeBlock[]): number[] {
+export function availableRpms(blocks: readonly CruiseAltitudeBlock[]): number[] {
   return [...new Set(blocks.flatMap((b) => b.rows.map((r) => r[0])))].sort((a, b) => a - b);
 }
 
@@ -168,7 +168,7 @@ export function availableRpms(blocks: CruiseAltitudeBlock[]): number[] {
  * what asking for Infinity does.
  */
 function requestBounds(
-  blocks: CruiseAltitudeBlock[],
+  blocks: readonly CruiseAltitudeBlock[],
   rpm: number,
   oatC: number
 ): { min: number; max: number } | null {
@@ -182,7 +182,7 @@ function requestBounds(
  * Returns the full-throttle setting, flagged, when the target is out of reach.
  */
 export function solveAtRpm(
-  blocks: CruiseAltitudeBlock[],
+  blocks: readonly CruiseAltitudeBlock[],
   rpm: number,
   altitudeFt: number,
   oatC: number,
@@ -252,7 +252,7 @@ function toSetting(rpm: number, sample: Sample): CruiseSetting {
  * will be the highest RPM.
  */
 export function solveCruise(
-  blocks: CruiseAltitudeBlock[],
+  blocks: readonly CruiseAltitudeBlock[],
   options: { altitudeFt: number; oatC: number; targetPercentMcp: number; rpm?: number }
 ): CruiseSolution | null {
   const { altitudeFt, oatC, targetPercentMcp, rpm } = options;

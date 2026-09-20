@@ -1,81 +1,88 @@
 /**
- * These generators exist for exactly one reason: to give the app *something*
- * interpolatable to demo the calculators with before real POH tables are
- * transcribed. Every number they produce is synthetic — smooth curves shaped
- * to look like a plausible normally-aspirated single, nothing more. Nothing
- * here should ever be read as, or replace, actual POH performance data.
- * Delete this file's callers once real `CruiseDataPoint[]` /
- * `FieldPerformanceDataPoint[]` tables are transcribed from the aircraft's
- * POH Section 5.
+ * Stand-in tables for aircraft whose POH has not been transcribed yet.
+ *
+ * Every number these produce is synthetic — smooth curves shaped to look
+ * like a plausible normally-aspirated single, nothing more. They exist so
+ * the app has something interpolatable to exercise before real data
+ * arrives, and they are emitted in the same shape as a real transcription
+ * so there is only ever one code path. Any profile built on them must set
+ * `dataSource: 'placeholder'`, which makes every screen warn.
+ *
+ * Delete the caller, not this file's shape, when a real POH lands.
  */
-import type { CruiseDataPoint, FieldPerformanceDataPoint } from '@/types/aircraft';
+import type { CruiseAltitudeBlock, CruiseRow, FieldWeightBlock, FieldRow } from '@/data/poh/types';
 
-export interface CruiseTableSeed {
+export interface CruiseSeed {
   altitudesFt: number[];
-  isaDeviationsC: number[];
-  /** percentPower -> { rpm, manifoldPressureInHg, ktas, fuelFlowGph } at sea level, standard day. */
-  powerBaselines: Record<number, { rpm: number; manifoldPressureInHg: number; ktas: number; fuelFlowGph: number }>;
+  /** Standard temperature at sea level falls 2°C per 1000 ft, as POH sheets round it. */
+  rpms: number[];
+  manifoldPressures: number[];
+  /** %MCP produced at the lowest RPM and lowest MP on a standard day at sea level. */
+  basePercentMcp: number;
+  baseKtas: number;
+  baseGph: number;
 }
 
-export function generatePlaceholderCruiseTable(seed: CruiseTableSeed): CruiseDataPoint[] {
-  const points: CruiseDataPoint[] = [];
-  for (const percentPower of Object.keys(seed.powerBaselines).map(Number)) {
-    const base = seed.powerBaselines[percentPower];
-    for (const pressureAltitudeFt of seed.altitudesFt) {
-      // Normally-aspirated engines need less manifold pressure at altitude to
-      // hold a given %power (ambient pressure is already lower); true
-      // airspeed rises with altitude at a fixed %power/IAS.
-      const altitudeFactor = pressureAltitudeFt / 1000;
-      const manifoldPressureInHg = Math.max(base.manifoldPressureInHg - altitudeFactor * 0.25, 15);
-      const ktasAtAltitude = base.ktas + altitudeFactor * 1.6;
+export function generatePlaceholderCruise(seed: CruiseSeed): CruiseAltitudeBlock[] {
+  return seed.altitudesFt.map((pressureAltitudeFt) => {
+    const stdTemp = 15 - (pressureAltitudeFt / 1000) * 2;
+    const rows: CruiseRow[] = [];
 
-      for (const isaDeviationC of seed.isaDeviationsC) {
-        // Warmer-than-standard air is less dense: modest TAS gain, modest fuel-flow loss.
-        const tempFactor = isaDeviationC / 20;
-        points.push({
-          pressureAltitudeFt,
-          isaDeviationC,
-          percentPower,
-          rpm: base.rpm,
-          manifoldPressureInHg: Math.round(manifoldPressureInHg * 10) / 10,
-          ktas: Math.round(ktasAtAltitude + tempFactor * 1.5),
-          fuelFlowGph: Math.round((base.fuelFlowGph - tempFactor * 0.2) * 10) / 10,
-        });
+    for (const rpm of seed.rpms) {
+      const rpmStep = seed.rpms.indexOf(rpm);
+      // The published MP range narrows with altitude, as it does in a real book.
+      const ceilingIndex = seed.manifoldPressures.length - 1 - Math.floor(pressureAltitudeFt / 4000);
+
+      for (let i = 0; i < seed.manifoldPressures.length; i++) {
+        const mp = seed.manifoldPressures[i];
+        if (i > Math.max(ceilingIndex, 1)) continue;
+
+        const cell = (temperatureOffset: number): [number, number, number] => {
+          const power = seed.basePercentMcp + i * 4 + rpmStep * 3 - temperatureOffset * 0.15;
+          return [
+            Math.round(power),
+            Math.round(seed.baseKtas + i * 4 + rpmStep * 2 + pressureAltitudeFt / 1000),
+            Math.round((seed.baseGph + i * 0.6 + rpmStep * 0.4 - temperatureOffset * 0.02) * 10) / 10,
+          ];
+        };
+
+        rows.push([rpm, mp, cell(-20), cell(0), cell(20)]);
       }
     }
-  }
-  return points;
+
+    return {
+      pressureAltitudeFt,
+      tempsC: { cold: stdTemp - 20, std: stdTemp, hot: stdTemp + 20 },
+      rows,
+    };
+  });
 }
 
-export interface FieldTableSeed {
-  altitudesFt: number[];
-  isaDeviationsC: number[];
+export interface FieldSeed {
   weightsLbs: number[];
-  /** At the lightest listed weight, sea level, standard day. */
+  altitudesFt: number[];
+  oatsC: number[];
+  /** At the lightest listed weight, sea level, 0°C. */
   baseGroundRollFt: number;
-  baseDistanceOver50ftFt: number;
+  baseOver50ftFt: number;
 }
 
-export function generatePlaceholderFieldTable(seed: FieldTableSeed): FieldPerformanceDataPoint[] {
-  const points: FieldPerformanceDataPoint[] = [];
-  const lightestWeight = Math.min(...seed.weightsLbs);
+export function generatePlaceholderField(seed: FieldSeed): FieldWeightBlock[] {
+  const lightest = Math.min(...seed.weightsLbs);
 
-  for (const weightLbs of seed.weightsLbs) {
-    const weightFactor = weightLbs / lightestWeight;
-    for (const pressureAltitudeFt of seed.altitudesFt) {
-      const altitudeFactor = 1 + pressureAltitudeFt / 10000;
-      for (const isaDeviationC of seed.isaDeviationsC) {
-        const tempFactor = 1 + Math.max(isaDeviationC, 0) / 100;
-        const combined = weightFactor * altitudeFactor * tempFactor;
-        points.push({
+  return seed.weightsLbs.map((weightLbs) => {
+    const byOatC: Record<number, FieldRow[]> = {};
+    for (const oatC of seed.oatsC) {
+      byOatC[oatC] = seed.altitudesFt.map((pressureAltitudeFt) => {
+        const factor =
+          (weightLbs / lightest) * (1 + pressureAltitudeFt / 10000) * (1 + Math.max(oatC, 0) / 100);
+        return [
           pressureAltitudeFt,
-          isaDeviationC,
-          weightLbs,
-          groundRollFt: Math.round(seed.baseGroundRollFt * combined),
-          distanceOver50ftFt: Math.round(seed.baseDistanceOver50ftFt * combined),
-        });
-      }
+          Math.round(seed.baseGroundRollFt * factor),
+          Math.round(seed.baseOver50ftFt * factor),
+        ] as FieldRow;
+      });
     }
-  }
-  return points;
+    return { weightLbs, byOatC };
+  });
 }

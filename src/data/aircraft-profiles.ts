@@ -1,22 +1,79 @@
 /**
- * Aircraft profiles used by the calculators.
+ * The aircraft the app can compute for.
  *
- * `engineHp`, `maxSpeedKts`, `usableFuelGal`, and `serviceCeilingFt` come
- * from the rental spec sheets the user uploaded for N234FF (172SP) and
- * N32LP (182T) — real numbers for those two airframes, but only a summary
- * sheet, not the POH itself.
- *
- * Everything else — cruise/takeoff/landing tables, W&B stations, arms, and
- * the CG envelope — is synthetic placeholder data (see
- * `placeholder-generators.ts`) standing in until the real POH Section 5
- * (Performance) and Section 6 (Weight & Balance) are transcribed. Do not
- * use this app for actual flight planning until `dataSource` reads 'poh'.
+ * The 182T runs on the transcribed POH (document 182TPHBUS-00). The 172S is
+ * still on synthetic stand-in data and is flagged as such everywhere it
+ * appears, until its book is transcribed too.
  */
+import { generatePlaceholderCruise, generatePlaceholderField } from '@/data/placeholder-generators';
 import {
-  generatePlaceholderCruiseTable,
-  generatePlaceholderFieldTable,
-} from '@/data/placeholder-generators';
+  C182T_BAGGAGE_LIMITS,
+  C182T_STATIONS,
+  C182T_USABLE_FUEL_ARM_IN,
+  C182T_USABLE_FUEL_GAL,
+  c182tPohBase,
+} from '@/data/poh/c182t';
+import { c182tCruise } from '@/data/poh/c182t-cruise';
 import type { AircraftProfile } from '@/types/aircraft';
+
+/** Labels the cruise RPM dropdown shows beside each setting. */
+const RPM_PRESETS = [
+  { rpm: 2000, label: 'Economy' },
+  { rpm: 2100 },
+  { rpm: 2200, label: 'Balanced' },
+  { rpm: 2300 },
+  { rpm: 2400, label: 'Performance' },
+];
+
+const cessna182t: AircraftProfile = {
+  id: 'c182t-g1000',
+  tailNumber: 'N32LP',
+  shortName: 'C182T',
+  model: 'Cessna 182T G1000 (Skylane)',
+
+  engineHp: 230,
+  maxSpeedKts: 145,
+  serviceCeilingFt: 18100,
+
+  // Section 1 page 1-8. This is the *standard* empty weight from the book;
+  // N32LP's actual weighing record will differ and should replace it.
+  emptyWeightLbs: c182tPohBase.standardEmptyWeightLbs,
+  emptyWeightArm: 39.0,
+  maxGrossWeightLbs: c182tPohBase.maxTakeoffWeightLbs,
+  maxLandingWeightLbs: c182tPohBase.maxLandingWeightLbs,
+  usableFuelGal: C182T_USABLE_FUEL_GAL.standard,
+  fuelLbsPerGal: 6,
+  fuelArm: C182T_USABLE_FUEL_ARM_IN,
+
+  stations: C182T_STATIONS.standardSeating.map((s) => ({
+    id: s.id,
+    label: s.label,
+    arm: s.armIn,
+    maxWeight: 'maxWeightLbs' in s ? s.maxWeightLbs : undefined,
+  })),
+  envelope: c182tPohBase.cgEnvelope.map((p) => ({
+    weight: p.weightLbs,
+    forwardArm: p.forwardArmIn,
+    aftArm: p.aftArmIn,
+  })),
+  combinedWeightLimits: C182T_BAGGAGE_LIMITS.combined.map((c) => ({
+    stationIds: [...c.areaIds],
+    maxWeightLbs: c.maxWeightLbs,
+    label: c.areaIds.map((id) => id.replace('baggage-', '').toUpperCase()).join(' + '),
+  })),
+
+  cruise: c182tCruise,
+  rpmPresets: RPM_PRESETS,
+  takeoff: c182tPohBase.takeoff,
+  landing: c182tPohBase.landing,
+
+  performanceDataSource: 'poh',
+  weightBalanceDataSource: 'poh',
+  pohDocumentNumber: c182tPohBase.documentNumber,
+  sourceNote:
+    'Performance and W&B limits transcribed from POH 182TPHBUS-00. Empty weight is the ' +
+    "book's standard figure — replace it with this airframe's weighing record before flight planning.",
+};
 
 const cessna172sp: AircraftProfile = {
   id: 'c172sp-g1000',
@@ -31,113 +88,60 @@ const cessna172sp: AircraftProfile = {
   emptyWeightLbs: 1680,
   emptyWeightArm: 39.0,
   maxGrossWeightLbs: 2550,
+  maxLandingWeightLbs: 2550,
   usableFuelGal: 53,
   fuelLbsPerGal: 6,
-  fuelArm: 48.0,
+  fuelArm: 46.5,
 
   stations: [
-    { id: 'front-seats', label: 'Front Seats (Pilot + Pax)', arm: 37.0 },
-    { id: 'rear-seats', label: 'Rear Seats', arm: 73.0 },
-    { id: 'baggage-1', label: 'Baggage Area 1', arm: 95.0, maxWeight: 120 },
-    { id: 'baggage-2', label: 'Baggage Area 2', arm: 123.0, maxWeight: 50 },
+    { id: 'front-seats', label: 'Pilot & Front Passenger', arm: 37.0 },
+    { id: 'rear-seats', label: 'Rear Passengers', arm: 73.0 },
+    { id: 'baggage-a', label: 'Baggage Area 1', arm: 95.0, maxWeight: 120 },
+    { id: 'baggage-b', label: 'Baggage Area 2', arm: 123.0, maxWeight: 50 },
   ],
   envelope: [
     { weight: 1680, forwardArm: 35.0, aftArm: 40.5 },
     { weight: 2000, forwardArm: 35.6, aftArm: 40.8 },
     { weight: 2550, forwardArm: 37.5, aftArm: 41.0 },
   ],
+  combinedWeightLimits: [],
 
-  availablePowerSettings: [65, 70, 75],
-  cruiseTable: generatePlaceholderCruiseTable({
-    altitudesFt: [2000, 6000, 10000],
-    isaDeviationsC: [-20, 0, 20],
-    powerBaselines: {
-      65: { rpm: 2250, manifoldPressureInHg: 21.5, ktas: 110, fuelFlowGph: 7.8 },
-      70: { rpm: 2350, manifoldPressureInHg: 22.5, ktas: 116, fuelFlowGph: 8.6 },
-      75: { rpm: 2450, manifoldPressureInHg: 23.5, ktas: 122, fuelFlowGph: 9.7 },
-    },
+  cruise: generatePlaceholderCruise({
+    altitudesFt: [0, 2000, 4000, 6000, 8000, 10000, 12000],
+    rpms: [2100, 2200, 2300, 2400],
+    manifoldPressures: [19, 20, 21, 22, 23, 24],
+    basePercentMcp: 50,
+    baseKtas: 100,
+    baseGph: 7.0,
   }),
-  takeoffTable: generatePlaceholderFieldTable({
-    altitudesFt: [0, 4000, 8000],
-    isaDeviationsC: [0, 20],
+  rpmPresets: [
+    { rpm: 2100, label: 'Economy' },
+    { rpm: 2200 },
+    { rpm: 2300, label: 'Balanced' },
+    { rpm: 2400, label: 'Performance' },
+  ],
+  takeoff: generatePlaceholderField({
     weightsLbs: [2200, 2550],
-    baseGroundRollFt: 850,
-    baseDistanceOver50ftFt: 1500,
+    altitudesFt: [0, 2000, 4000, 6000, 8000],
+    oatsC: [0, 10, 20, 30, 40],
+    baseGroundRollFt: 860,
+    baseOver50ftFt: 1500,
   }),
-  landingTable: generatePlaceholderFieldTable({
-    altitudesFt: [0, 4000, 8000],
-    isaDeviationsC: [0, 20],
-    weightsLbs: [2200, 2550],
+  landing: generatePlaceholderField({
+    weightsLbs: [2550],
+    altitudesFt: [0, 2000, 4000, 6000, 8000],
+    oatsC: [0, 10, 20, 30, 40],
     baseGroundRollFt: 600,
-    baseDistanceOver50ftFt: 1350,
+    baseOver50ftFt: 1350,
   }),
 
   performanceDataSource: 'placeholder',
   weightBalanceDataSource: 'placeholder',
   sourceNote:
-    'Engine/fuel/speed specs from N234FF rental sheet. Performance tables and W&B arms are placeholder — upload the real POH to replace them.',
+    'Engine, fuel and speed figures come from the N234FF rental sheet. All performance ' +
+    'tables and W&B arms are synthetic placeholders — transcribe the 172S POH to replace them.',
 };
 
-const cessna182t: AircraftProfile = {
-  id: 'c182t-g1000',
-  tailNumber: 'N32LP',
-  shortName: 'C182T',
-  model: 'Cessna 182T G1000 (Skylane)',
+export const aircraftProfiles: AircraftProfile[] = [cessna182t, cessna172sp];
 
-  engineHp: 230,
-  maxSpeedKts: 145,
-  serviceCeilingFt: 18100,
-
-  emptyWeightLbs: 1970,
-  emptyWeightArm: 40.5,
-  maxGrossWeightLbs: 3100,
-  usableFuelGal: 87,
-  fuelLbsPerGal: 6,
-  fuelArm: 46.0,
-
-  stations: [
-    { id: 'front-seats', label: 'Front Seats (Pilot + Pax)', arm: 37.0 },
-    { id: 'rear-seats', label: 'Rear Seats', arm: 73.0 },
-    { id: 'baggage-1', label: 'Baggage Area 1', arm: 95.0, maxWeight: 120 },
-    { id: 'baggage-2', label: 'Baggage Area 2', arm: 116.0, maxWeight: 80 },
-  ],
-  envelope: [
-    { weight: 1970, forwardArm: 34.0, aftArm: 46.5 },
-    { weight: 2500, forwardArm: 35.4, aftArm: 46.8 },
-    { weight: 3100, forwardArm: 37.9, aftArm: 47.0 },
-  ],
-
-  availablePowerSettings: [65, 70, 75],
-  cruiseTable: generatePlaceholderCruiseTable({
-    altitudesFt: [2000, 6000, 10000],
-    isaDeviationsC: [-20, 0, 20],
-    powerBaselines: {
-      65: { rpm: 2200, manifoldPressureInHg: 21.0, ktas: 127, fuelFlowGph: 12.6 },
-      70: { rpm: 2300, manifoldPressureInHg: 22.0, ktas: 133, fuelFlowGph: 13.7 },
-      75: { rpm: 2400, manifoldPressureInHg: 23.0, ktas: 139, fuelFlowGph: 14.9 },
-    },
-  }),
-  takeoffTable: generatePlaceholderFieldTable({
-    altitudesFt: [0, 4000, 8000],
-    isaDeviationsC: [0, 20],
-    weightsLbs: [2700, 3100],
-    baseGroundRollFt: 950,
-    baseDistanceOver50ftFt: 1650,
-  }),
-  landingTable: generatePlaceholderFieldTable({
-    altitudesFt: [0, 4000, 8000],
-    isaDeviationsC: [0, 20],
-    weightsLbs: [2700, 3100],
-    baseGroundRollFt: 700,
-    baseDistanceOver50ftFt: 1450,
-  }),
-
-  performanceDataSource: 'placeholder',
-  weightBalanceDataSource: 'placeholder',
-  sourceNote:
-    'Engine/fuel/speed specs from N32LP rental sheet. Performance tables and W&B arms are placeholder — upload the real POH to replace them.',
-};
-
-export const aircraftProfiles: AircraftProfile[] = [cessna172sp, cessna182t];
-
-export const defaultAircraftProfileId = cessna172sp.id;
+export const defaultAircraftProfileId = cessna182t.id;

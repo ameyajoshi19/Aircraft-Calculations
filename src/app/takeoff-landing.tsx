@@ -12,13 +12,20 @@ export default function TakeoffLandingScreen() {
   const { selectedProfile: profile } = useAircraft();
 
   const [altitudeFt, setAltitudeFt] = useState(0);
-  const [isaDeviationC, setIsaDeviationC] = useState(0);
+  const [oatC, setOatC] = useState(15);
   const [weightLbs, setWeightLbs] = useState(profile.maxGrossWeightLbs);
   const [windKts, setWindKts] = useState(0);
 
-  const outsideAirTempC = isaTemperatureC(altitudeFt) + isaDeviationC;
-  const takeoff = lookupFieldPerformance(profile.takeoffTable, altitudeFt, isaDeviationC, weightLbs, windKts);
-  const landing = lookupFieldPerformance(profile.landingTable, altitudeFt, isaDeviationC, weightLbs, windKts);
+  const isaDeviation = oatC - isaTemperatureC(altitudeFt);
+  const common = { pressureAltitudeFt: altitudeFt, oatC, windComponentKts: windKts };
+
+  const takeoff = lookupFieldPerformance(profile.takeoff, { ...common, weightLbs });
+  // The POH tabulates landing at the maximum landing weight only, so a lighter
+  // aeroplane gets the heavier figure — conservative, which is the right way to err.
+  const landing = lookupFieldPerformance(profile.landing, {
+    ...common,
+    weightLbs: Math.min(weightLbs, profile.maxLandingWeightLbs),
+  });
 
   return (
     <Screen
@@ -26,9 +33,7 @@ export default function TakeoffLandingScreen() {
       subtitle={`${profile.shortName}${profile.tailNumber ? ` · ${profile.tailNumber}` : ''}`}
       footer="Planning only · Verify against the POH">
       {profile.performanceDataSource === 'placeholder' ? (
-        <Notice tone="warning">
-          Placeholder distance tables, and a generic wind correction — neither is from the POH yet.
-        </Notice>
+        <Notice tone="warning">Placeholder distance tables — not transcribed from a POH.</Notice>
       ) : null}
 
       <Section>
@@ -36,20 +41,20 @@ export default function TakeoffLandingScreen() {
           label="Pressure altitude"
           valueLabel={`${altitudeFt.toLocaleString()} ft`}
           min={0}
-          max={Math.min(profile.serviceCeilingFt, 10000)}
-          step={500}
+          max={8000}
+          step={250}
           value={altitudeFt}
           onChange={setAltitudeFt}
         />
         <SliderField
           label="Temperature"
-          valueLabel={`ISA ${isaDeviationC >= 0 ? '+' : ''}${isaDeviationC}°`}
-          hint={`${outsideAirTempC.toFixed(1)}°C`}
+          valueLabel={`${oatC}°C`}
+          hint={`ISA ${isaDeviation >= 0 ? '+' : ''}${isaDeviation.toFixed(0)}°`}
           min={-20}
-          max={30}
+          max={45}
           step={1}
-          value={isaDeviationC}
-          onChange={setIsaDeviationC}
+          value={oatC}
+          onChange={setOatC}
         />
         <SliderField
           label="Wind component"
@@ -72,27 +77,40 @@ export default function TakeoffLandingScreen() {
 
       <Rule />
 
-      <Section label="Takeoff">
-        <StatRow>
-          <Stat label="Ground roll" value={takeoff ? takeoff.groundRollFt.toLocaleString() : '—'} unit="ft" />
-          <Stat
-            label="Over 50 ft"
-            value={takeoff ? takeoff.distanceOver50ftFt.toLocaleString() : '—'}
-            unit="ft"
-          />
-        </StatRow>
+      <Section label="Takeoff · short field">
+        {takeoff ? (
+          <StatRow>
+            <Stat label="Ground roll" value={takeoff.groundRollFt.toLocaleString()} unit="ft" />
+            <Stat label="Over 50 ft" value={takeoff.distanceOver50ftFt.toLocaleString()} unit="ft" />
+          </StatRow>
+        ) : (
+          <Notice tone="danger">
+            The POH publishes no takeoff figures for these conditions. Above 30°C the charts stop
+            early, because climb performance after lift-off drops below 150 fpm.
+          </Notice>
+        )}
       </Section>
 
-      <Section label="Landing">
-        <StatRow>
-          <Stat label="Ground roll" value={landing ? landing.groundRollFt.toLocaleString() : '—'} unit="ft" />
-          <Stat
-            label="Over 50 ft"
-            value={landing ? landing.distanceOver50ftFt.toLocaleString() : '—'}
-            unit="ft"
-          />
-        </StatRow>
+      <Section label="Landing · short field">
+        {landing ? (
+          <StatRow>
+            <Stat label="Ground roll" value={landing.groundRollFt.toLocaleString()} unit="ft" />
+            <Stat label="Over 50 ft" value={landing.distanceOver50ftFt.toLocaleString()} unit="ft" />
+          </StatRow>
+        ) : (
+          <Notice tone="danger">The POH publishes no landing figures for these conditions.</Notice>
+        )}
+        {landing && weightLbs > profile.maxLandingWeightLbs ? (
+          <Notice tone="warning">
+            {`Above the ${profile.maxLandingWeightLbs.toLocaleString()} lb maximum landing weight. Figures shown are for that weight.`}
+          </Notice>
+        ) : null}
       </Section>
+
+      <Notice tone="warning">
+        Short field technique, paved level dry runway, zero wind before the wind correction. Dry
+        grass adds 15% of the takeoff ground roll and 45% of the landing ground roll.
+      </Notice>
     </Screen>
   );
 }

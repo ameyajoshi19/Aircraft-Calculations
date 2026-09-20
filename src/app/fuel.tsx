@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 
+import { Dropdown } from '@/components/ui/Dropdown';
 import { Notice } from '@/components/ui/Notice';
 import { NumberField } from '@/components/ui/NumberField';
 import { DataRow, Rule, Stat, StatRow } from '@/components/ui/Readout';
 import { Screen, Section } from '@/components/ui/Screen';
-import { Segment } from '@/components/ui/Segment';
 import { SliderField } from '@/components/ui/SliderField';
 import { useAircraft } from '@/context/aircraft-context';
-import { computeFuelPlan, lookupCruisePerformance } from '@/lib/performance';
+import { MAX_CRUISE_PERCENT_MCP, MIN_CRUISE_PERCENT_MCP, solveCruise } from '@/lib/cruise';
+import { computeFuelPlan, isaTemperatureC } from '@/lib/performance';
 
-const POWER_LABELS = ['Economy', 'Balanced', 'Performance'];
+const AUTO = 'auto' as const;
 
 function hoursMinutes(hours: number): string {
   const totalMinutes = Math.round(hours * 60);
@@ -20,29 +21,47 @@ export default function FuelScreen() {
   const { selectedProfile: profile } = useAircraft();
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
-  const [percentPower, setPercentPower] = useState(profile.availablePowerSettings[0]);
+  const [targetPercentMcp, setTargetPercentMcp] = useState(65);
+  const [rpmChoice, setRpmChoice] = useState<number | typeof AUTO>(AUTO);
   const [reserveMinutes, setReserveMinutes] = useState(45);
   const [tripDistanceNm, setTripDistanceNm] = useState(0);
 
-  const powerOptions = profile.availablePowerSettings.map((value, index) => ({
-    value,
-    label: `${value}%`,
-    sublabel: POWER_LABELS[index],
-  }));
+  const altitude = Math.min(altitudeFt, profile.serviceCeilingFt);
 
-  const cruise = lookupCruisePerformance(profile, altitudeFt, 0, percentPower);
+  const solution = useMemo(
+    () =>
+      solveCruise(profile.cruise, {
+        altitudeFt: altitude,
+        oatC: isaTemperatureC(altitude),
+        targetPercentMcp,
+        rpm: rpmChoice === AUTO ? undefined : rpmChoice,
+      }),
+    [profile.cruise, altitude, targetPercentMcp, rpmChoice]
+  );
+
+  const rpmOptions = useMemo(
+    () => [
+      { value: AUTO as number | typeof AUTO, label: 'Auto', note: 'Lowest RPM that reaches target' },
+      ...profile.rpmPresets.map((preset) => ({
+        value: preset.rpm as number | typeof AUTO,
+        label: `${preset.rpm} RPM`,
+        note: preset.label,
+      })),
+    ],
+    [profile.rpmPresets]
+  );
 
   const plan = useMemo(
     () =>
-      cruise
-        ? computeFuelPlan(profile.usableFuelGal, cruise.fuelFlowGph, cruise.ktas, reserveMinutes)
+      solution
+        ? computeFuelPlan(profile.usableFuelGal, solution.gph, solution.ktas, reserveMinutes)
         : null,
-    [cruise, profile.usableFuelGal, reserveMinutes]
+    [solution, profile.usableFuelGal, reserveMinutes]
   );
 
-  const tripHours = cruise && cruise.ktas > 0 ? tripDistanceNm / cruise.ktas : 0;
-  const tripFuelGal = cruise ? tripHours * cruise.fuelFlowGph : 0;
-  const tripPlanned = tripDistanceNm > 0 && cruise !== null;
+  const tripHours = solution && solution.ktas > 0 ? tripDistanceNm / solution.ktas : 0;
+  const tripFuelGal = solution ? tripHours * solution.gph : 0;
+  const tripPlanned = tripDistanceNm > 0 && solution !== null;
   const tripFits = tripPlanned && tripFuelGal + (plan?.reserveGal ?? 0) <= profile.usableFuelGal;
 
   return (
@@ -51,20 +70,29 @@ export default function FuelScreen() {
       subtitle={`${profile.shortName}${profile.tailNumber ? ` · ${profile.tailNumber}` : ''}`}
       footer="Planning only · Verify against the POH">
       {profile.performanceDataSource === 'placeholder' ? (
-        <Notice tone="warning">Built on the placeholder cruise table — not POH data yet.</Notice>
+        <Notice tone="warning">Built on placeholder cruise data, not a POH.</Notice>
       ) : null}
 
       <Section>
         <SliderField
           label="Altitude"
-          valueLabel={`${altitudeFt.toLocaleString()} ft`}
+          valueLabel={`${altitude.toLocaleString()} ft`}
           min={0}
           max={profile.serviceCeilingFt}
           step={500}
-          value={altitudeFt}
+          value={altitude}
           onChange={setAltitudeFt}
         />
-        <Segment label="Power" options={powerOptions} value={percentPower} onChange={setPercentPower} />
+        <SliderField
+          label="Target power"
+          valueLabel={`${targetPercentMcp}% MCP`}
+          min={MIN_CRUISE_PERCENT_MCP}
+          max={MAX_CRUISE_PERCENT_MCP}
+          step={1}
+          value={targetPercentMcp}
+          onChange={setTargetPercentMcp}
+        />
+        <Dropdown label="RPM" value={rpmChoice} options={rpmOptions} onChange={setRpmChoice} />
         <SliderField
           label="Reserve"
           valueLabel={`${reserveMinutes} min`}
@@ -79,12 +107,17 @@ export default function FuelScreen() {
       <Rule />
 
       <StatRow>
-        <Stat label="Burn" value={cruise ? cruise.fuelFlowGph.toFixed(1) : '—'} unit="gph" />
+        <Stat label="Burn" value={solution ? solution.gph.toFixed(1) : '—'} unit="gph" />
         <Stat label="Endurance" value={plan ? hoursMinutes(plan.flightEnduranceHours) : '—'} />
         <Stat label="Range" value={plan ? String(Math.round(plan.rangeNm)) : '—'} unit="nm" />
       </StatRow>
 
       <Section label="Breakdown">
+        <DataRow
+          label="Setting"
+          value={solution ? `${solution.rpm} RPM · ${solution.manifoldPressureInHg.toFixed(1)}"` : '—'}
+        />
+        <DataRow label="Power delivered" value={solution ? `${solution.percentMcp}% MCP` : '—'} />
         <DataRow label="Usable fuel" value={`${profile.usableFuelGal} gal`} />
         <DataRow label="Reserve" value={plan ? `${plan.reserveGal.toFixed(1)} gal` : '—'} />
         <DataRow
@@ -108,6 +141,11 @@ export default function FuelScreen() {
             : 'Trip fuel plus reserve exceeds usable fuel.'}
         </Notice>
       ) : null}
+
+      <Notice tone="warning">
+        Range and endurance assume cruise for the whole flight. They exclude the fuel for start,
+        taxi, takeoff and climb — the POH allows 1.7 gal for start, taxi and takeoff alone.
+      </Notice>
     </Screen>
   );
 }
