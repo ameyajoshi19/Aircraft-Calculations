@@ -41,7 +41,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "check:poh": "node --experimental-strip-types scripts/check-poh.ts"
+    "check:poh": "node --experimental-strip-types scripts/check-poh.ts",
+    "check:cruise": "node --experimental-strip-types scripts/check-cruise.ts"
   },
   "private": true
 }
