@@ -10,7 +10,12 @@
  * Run: npm run check:poh
  */
 import { c182tCruise } from '../src/data/poh/c182t-cruise.ts';
-import { c182tPohBase as c182tPoh } from '../src/data/poh/c182t.ts';
+import {
+  C182T_BAGGAGE_LIMITS,
+  C182T_STATIONS,
+  C182T_USABLE_FUEL_ARM_IN,
+  c182tPohBase as c182tPoh,
+} from '../src/data/poh/c182t.ts';
 import type { FieldWeightBlock } from '../src/data/poh/types.ts';
 
 const problems: string[] = [];
@@ -197,6 +202,63 @@ for (let i = 0; i < c182tPoh.cgEnvelope.length; i++) {
       `CG envelope: forward limit moved forward as weight increased (${prev.forwardArmIn} -> ${point.forwardArmIn})`
     );
   }
+}
+
+// --- Loading stations -------------------------------------------------------
+// Arms must march aft down the cabin, each baggage arm must sit inside its own
+// station range, and usable fuel must fall between the front and rear seats.
+
+for (const [layout, stations] of Object.entries(C182T_STATIONS)) {
+  for (let i = 1; i < stations.length; i++) {
+    check(
+      stations[i].armIn > stations[i - 1].armIn,
+      `${layout}: arm did not increase from ${stations[i - 1].id} (${stations[i - 1].armIn}) to ${stations[i].id} (${stations[i].armIn})`
+    );
+  }
+
+  for (const station of stations) {
+    const range = 'stationIn' in station ? station.stationIn : undefined;
+    if (range) {
+      check(
+        station.armIn >= range[0] && station.armIn <= range[1],
+        `${layout}/${station.id}: arm ${station.armIn} is outside its station range ${range[0]}-${range[1]}`
+      );
+    }
+    const occupantRange = 'armRangeIn' in station ? station.armRangeIn : undefined;
+    if (occupantRange) {
+      check(
+        station.armIn >= occupantRange[0] && station.armIn <= occupantRange[1],
+        `${layout}/${station.id}: average arm ${station.armIn} is outside the seat travel ${occupantRange[0]}-${occupantRange[1]}`
+      );
+    }
+  }
+}
+
+const front = C182T_STATIONS.standardSeating[0];
+const rear = C182T_STATIONS.standardSeating[1];
+check(
+  C182T_USABLE_FUEL_ARM_IN > front.armIn && C182T_USABLE_FUEL_ARM_IN < rear.armIn,
+  `usable fuel arm ${C182T_USABLE_FUEL_ARM_IN} is not between the front (${front.armIn}) and rear (${rear.armIn}) seats`
+);
+
+// A combined baggage limit can never exceed the sum of its parts.
+for (const combo of C182T_BAGGAGE_LIMITS.combined) {
+  const individualSum = combo.areaIds.reduce((sum, id) => {
+    const area = C182T_BAGGAGE_LIMITS.areas.find((a) => a.id === id);
+    return sum + (area?.maxWeightLbs ?? 0);
+  }, 0);
+  check(
+    combo.maxWeightLbs <= individualSum,
+    `combined baggage limit for ${combo.areaIds.join('+')} (${combo.maxWeightLbs}) exceeds the sum of the individual limits (${individualSum})`
+  );
+}
+
+// Baggage areas must tile the cabin without gaps or overlaps.
+for (let i = 1; i < C182T_BAGGAGE_LIMITS.areas.length; i++) {
+  check(
+    C182T_BAGGAGE_LIMITS.areas[i].stationFrom === C182T_BAGGAGE_LIMITS.areas[i - 1].stationTo,
+    `baggage areas ${C182T_BAGGAGE_LIMITS.areas[i - 1].id} and ${C182T_BAGGAGE_LIMITS.areas[i].id} do not meet`
+  );
 }
 
 // --- Report -----------------------------------------------------------------

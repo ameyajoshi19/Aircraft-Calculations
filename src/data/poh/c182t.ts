@@ -8,16 +8,31 @@
 import type { ClimbRow, FieldWeightBlock, PohDocument } from './types';
 
 /**
- * Values that could not be read reliably from the supplied page images and
- * are stored as `null` rather than guessed.
+ * A cell that is NOT a transcription: it was interpolated from its
+ * neighbours and accepted by the aircraft's operator, because the source
+ * image reads "1265" — which would make the 50 ft distance *shorter* at
+ * 1000 ft than the 1300 at sea level, while every neighbouring cell
+ * increases. 1335 sits exactly midway between the 1300 at sea level and the
+ * 1370 at 2000 ft and matches the +35 ft/1000 ft trend of the 10°C column.
  *
- * The 1000 ft / 0°C landing cell is listed because the image appears to read
- * "1265", which would make the 50 ft distance *shorter* at 1000 ft than at
- * sea level while every neighbouring cell increases. That is physically
- * backwards, so it is treated as an unreliable read rather than transcribed.
+ * It should still be replaced by a clean read of page 5-37 before anyone
+ * plans a short field landing on it.
  */
+export const INFERRED_FIELD_CELLS = [
+  {
+    page: '5-37',
+    table: 'landing',
+    weightLbs: 2950,
+    altitudeFt: 1000,
+    oatC: 0,
+    field: 'over50ftFt',
+    value: 1335,
+    basis: 'Interpolated between sea level (1300) and 2000 ft (1370); source image unreadable.',
+  },
+] as const;
+
+/** Still unread: covered by the page-number overlay on the only image of page 5-37. */
 export const UNREADABLE_FIELD_CELLS = [
-  { page: '5-37', table: 'landing', weightLbs: 2950, altitudeFt: 1000, oatC: 0, field: 'over50ftFt' },
   { page: '5-37', table: 'landing', weightLbs: 2950, altitudeFt: 2000, oatC: 40, field: 'over50ftFt' },
 ] as const;
 
@@ -137,7 +152,8 @@ const landing: FieldWeightBlock[] = [
     overObstacleKias: 60,
     byOatC: {
       0: [
-        [0, 560, 1300], [1000, 580, null], [2000, 600, 1370], [3000, 625, 1410],
+        // 1000 ft / 0°C: see INFERRED_FIELD_CELLS — 1335 is interpolated, not read.
+        [0, 560, 1300], [1000, 580, 1335], [2000, 600, 1370], [3000, 625, 1410],
         [4000, 650, 1450], [5000, 670, 1485], [6000, 700, 1530], [7000, 725, 1575],
         [8000, 755, 1625],
       ],
@@ -210,9 +226,47 @@ export const C182T_DATUM = {
   leadingEdgeMacFs: 25.98,
   /** CG %MAC = (CG arm − 25.98) / 0.5880 */
   percentMacFromArm: (armIn: number) => (armIn - 25.98) / 0.588,
+  /**
+   * Drainable UNUSABLE fuel, from the weighing form on page 6-6. This sits at
+   * a different station from usable fuel and is already counted inside basic
+   * empty weight — it must not be added again when loading.
+   */
   drainableUnusableFuel: { weightLbs: 30.0, armIn: 48.0, gallons: 5 },
   fuelWeightLbsPerGal: 6.0,
 } as const;
+
+/**
+ * Figure 6-5, page 6-14. Arms for occupants are the CG of an average
+ * occupant on adjustable seats; the bracketed range is the fore/aft travel.
+ * Baggage arms are measured to the centre of each area.
+ */
+export const C182T_STATIONS = {
+  standardSeating: [
+    { id: 'front-seats', label: 'Pilot & Front Passenger', armIn: 37, armRangeIn: [32, 50] },
+    { id: 'rear-seats', label: 'Rear Passengers', armIn: 74 },
+    { id: 'baggage-a', label: 'Baggage Area A', armIn: 97, stationIn: [82, 109], maxWeightLbs: 120 },
+    { id: 'baggage-b', label: 'Baggage Area B', armIn: 116, stationIn: [109, 124], maxWeightLbs: 80 },
+    { id: 'baggage-c', label: 'Baggage Area C', armIn: 129, stationIn: [124, 134], maxWeightLbs: 80 },
+  ],
+  /** With the rear seat removed, that space becomes a cargo area at FS 65-82. */
+  rearSeatRemoved: [
+    { id: 'front-seats', label: 'Pilot & Front Passenger', armIn: 37, armRangeIn: [32, 50] },
+    { id: 'cargo', label: 'Cargo (rear seat removed)', armIn: 74, stationIn: [65, 82] },
+    { id: 'baggage-a', label: 'Baggage Area A', armIn: 97, stationIn: [82, 109], maxWeightLbs: 120 },
+    { id: 'baggage-b', label: 'Baggage Area B', armIn: 116, stationIn: [109, 124], maxWeightLbs: 80 },
+    { id: 'baggage-c', label: 'Baggage Area C', armIn: 129, stationIn: [124, 134], maxWeightLbs: 80 },
+  ],
+} as const;
+
+/**
+ * Figure 6-5 note, page 6-14: "The usable fuel C.G. arm is located at
+ * FS 46.50." This is NOT the 48.00 arm on the weighing form — that one
+ * belongs to the drainable unusable fuel inside empty weight.
+ */
+export const C182T_USABLE_FUEL_ARM_IN = 46.5;
+
+/** Loading graph, Figure 6-4 page 6-13. Two tank configurations are charted. */
+export const C182T_USABLE_FUEL_GAL = { standard: 87, reduced: 64 } as const;
 
 /**
  * Everything except the cruise tables, which live in `c182t-cruise.ts` and

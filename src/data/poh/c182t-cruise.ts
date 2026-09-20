@@ -22,18 +22,15 @@
 import type { CruiseAltitudeBlock, CruiseRow } from './types';
 
 /**
- * Cells covered by the PDF viewer's page-number overlay in the supplied
- * screenshots. Stored as `null` rather than guessed, so a lookup that needs
- * one fails visibly instead of returning an invented fuel flow.
- * Re-capture these pages with the overlay dismissed to fill them in.
+ * Every cruise cell has now been read from a clean page image. Pages 5-26,
+ * 5-27, 5-29 and 5-31 were re-captured without the viewer's page-number
+ * overlay; the re-reads also independently confirmed all 18 cells on sheet 5
+ * that had been transcribed from the obscured copy.
+ *
+ * `null` in the tables below therefore means only one thing: the POH itself
+ * prints "---" for that setting.
  */
-export const UNREADABLE_CELLS = [
-  { page: '5-29', altitudeFt: 8000, rpm: 2300, mp: 21, column: '20°C above' },
-  { page: '5-29', altitudeFt: 8000, rpm: 2300, mp: 20, column: '20°C above' },
-  { page: '5-29', altitudeFt: 8000, rpm: 2300, mp: 19, column: '20°C above' },
-  { page: '5-31', altitudeFt: 12000, rpm: 2200, mp: 17, column: '20°C above' },
-  { page: '5-31', altitudeFt: 12000, rpm: 2100, mp: 18, column: '20°C above' },
-] as const;
+export const UNREADABLE_CELLS: readonly { page: string; altitudeFt: number; rpm: number; mp: number }[] = [];
 
 // Sheets 1-2, pages 5-22 / 5-23.
 const SEA_LEVEL: CruiseRow[] = [
@@ -204,9 +201,9 @@ const FT_8000: CruiseRow[] = [
   [2400, 19, [64, 130, 11.4], [62, 130, 11.0], [60, 130, 10.7]],
   [2400, 18, [59, 125, 10.6], [57, 124, 10.3], [55, 124, 10.1]],
 
-  [2300, 21, [72, 136, 12.5], [69, 137, 12.0], null],
-  [2300, 20, [67, 132, 11.7], [64, 132, 11.3], null],
-  [2300, 19, [62, 128, 11.0], [60, 127, 10.7], null],
+  [2300, 21, [72, 136, 12.5], [69, 137, 12.0], [67, 137, 11.7]],
+  [2300, 20, [67, 132, 11.7], [64, 132, 11.3], [62, 132, 11.0]],
+  [2300, 19, [62, 128, 11.0], [60, 127, 10.7], [58, 127, 10.4]],
   [2300, 18, [57, 122, 10.3], [55, 122, 10.1], [53, 121, 9.8]],
 
   [2200, 21, [69, 134, 12.0], [66, 134, 11.6], [64, 134, 11.3]],
@@ -259,9 +256,9 @@ const FT_12000: CruiseRow[] = [
   [2300, 16, [52, 118, 9.6], [50, 118, 9.3], [48, 117, 9.0]],
 
   [2200, 18, [59, 128, 10.6], [57, 128, 10.3], [55, 127, 10.0]],
-  [2200, 17, [54, 122, 9.9], [52, 121, 9.7], null],
+  [2200, 17, [54, 122, 9.9], [52, 121, 9.7], [50, 121, 9.4]],
 
-  [2100, 18, [56, 125, 10.2], [54, 124, 9.9], null],
+  [2100, 18, [56, 125, 10.2], [54, 124, 9.9], [52, 123, 9.6]],
   [2100, 17, [52, 119, 9.6], [50, 118, 9.3], [48, 117, 9.1]],
 
   [2000, 19, [57, 126, 10.4], [55, 125, 10.1], [53, 125, 9.8]],
