@@ -42,6 +42,12 @@ export interface RpmPreset {
   label?: string;
 }
 
+/** One of the target power settings the cruise screen offers. */
+export interface TargetPowerPreset {
+  percentMcp: number;
+  label: string;
+}
+
 export interface AircraftProfile {
   id: string;
   tailNumber?: string;
@@ -67,6 +73,7 @@ export interface AircraftProfile {
 
   cruise: readonly CruiseAltitudeBlock[];
   rpmPresets: RpmPreset[];
+  targetPowerPresets: TargetPowerPreset[];
   takeoff: readonly FieldWeightBlock[];
   landing: readonly FieldWeightBlock[];
 

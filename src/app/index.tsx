@@ -5,16 +5,13 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import { Notice } from '@/components/ui/Notice';
 import { Display, DisplayPair, Rule, Stat, StatRow } from '@/components/ui/Readout';
 import { Screen, Section } from '@/components/ui/Screen';
+import { Segment } from '@/components/ui/Segment';
 import { SliderField } from '@/components/ui/SliderField';
 import { Text } from '@/components/ui/Text';
 import { useAircraft } from '@/context/aircraft-context';
 import { useTheme } from '@/design/theme';
 import { space } from '@/design/tokens';
-import {
-  MAX_CRUISE_PERCENT_MCP,
-  MIN_CRUISE_PERCENT_MCP,
-  solveCruise,
-} from '@/lib/cruise';
+import { solveCruise } from '@/lib/cruise';
 import { isaTemperatureC } from '@/lib/performance';
 
 const AUTO = 'auto' as const;
@@ -28,7 +25,9 @@ export default function CruiseScreen() {
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
   const [isaDeviationC, setIsaDeviationC] = useState(0);
-  const [targetPercentMcp, setTargetPercentMcp] = useState(65);
+  const [targetPercentMcp, setTargetPercentMcp] = useState(
+    profile.targetPowerPresets[0].percentMcp
+  );
   const [rpmChoice, setRpmChoice] = useState<number | typeof AUTO>(AUTO);
 
   const altitude = Math.min(altitudeFt, profile.serviceCeilingFt);
@@ -43,6 +42,16 @@ export default function CruiseScreen() {
         rpm: rpmChoice === AUTO ? undefined : rpmChoice,
       }),
     [profile.cruise, altitude, oatC, targetPercentMcp, rpmChoice]
+  );
+
+  const powerOptions = useMemo(
+    () =>
+      profile.targetPowerPresets.map((preset) => ({
+        value: preset.percentMcp,
+        label: `${preset.percentMcp}%`,
+        sublabel: preset.label,
+      })),
+    [profile.targetPowerPresets]
   );
 
   const rpmOptions = useMemo(
@@ -98,12 +107,9 @@ export default function CruiseScreen() {
           value={isaDeviationC}
           onChange={setIsaDeviationC}
         />
-        <SliderField
+        <Segment
           label="Target power"
-          valueLabel={`${targetPercentMcp}% MCP`}
-          min={MIN_CRUISE_PERCENT_MCP}
-          max={MAX_CRUISE_PERCENT_MCP}
-          step={1}
+          options={powerOptions}
           value={targetPercentMcp}
           onChange={setTargetPercentMcp}
         />

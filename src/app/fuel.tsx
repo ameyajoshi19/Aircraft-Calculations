@@ -5,9 +5,10 @@ import { Notice } from '@/components/ui/Notice';
 import { NumberField } from '@/components/ui/NumberField';
 import { DataRow, Rule, Stat, StatRow } from '@/components/ui/Readout';
 import { Screen, Section } from '@/components/ui/Screen';
+import { Segment } from '@/components/ui/Segment';
 import { SliderField } from '@/components/ui/SliderField';
 import { useAircraft } from '@/context/aircraft-context';
-import { MAX_CRUISE_PERCENT_MCP, MIN_CRUISE_PERCENT_MCP, solveCruise } from '@/lib/cruise';
+import { solveCruise } from '@/lib/cruise';
 import { computeFuelPlan, isaTemperatureC } from '@/lib/performance';
 
 const AUTO = 'auto' as const;
@@ -21,7 +22,9 @@ export default function FuelScreen() {
   const { selectedProfile: profile } = useAircraft();
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
-  const [targetPercentMcp, setTargetPercentMcp] = useState(65);
+  const [targetPercentMcp, setTargetPercentMcp] = useState(
+    profile.targetPowerPresets[0].percentMcp
+  );
   const [rpmChoice, setRpmChoice] = useState<number | typeof AUTO>(AUTO);
   const [reserveMinutes, setReserveMinutes] = useState(45);
   const [tripDistanceNm, setTripDistanceNm] = useState(0);
@@ -37,6 +40,16 @@ export default function FuelScreen() {
         rpm: rpmChoice === AUTO ? undefined : rpmChoice,
       }),
     [profile.cruise, altitude, targetPercentMcp, rpmChoice]
+  );
+
+  const powerOptions = useMemo(
+    () =>
+      profile.targetPowerPresets.map((preset) => ({
+        value: preset.percentMcp,
+        label: `${preset.percentMcp}%`,
+        sublabel: preset.label,
+      })),
+    [profile.targetPowerPresets]
   );
 
   const rpmOptions = useMemo(
@@ -83,12 +96,9 @@ export default function FuelScreen() {
           value={altitude}
           onChange={setAltitudeFt}
         />
-        <SliderField
+        <Segment
           label="Target power"
-          valueLabel={`${targetPercentMcp}% MCP`}
-          min={MIN_CRUISE_PERCENT_MCP}
-          max={MAX_CRUISE_PERCENT_MCP}
-          step={1}
+          options={powerOptions}
           value={targetPercentMcp}
           onChange={setTargetPercentMcp}
         />

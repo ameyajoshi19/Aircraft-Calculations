@@ -16,6 +16,17 @@ import {
 import { c182tCruise } from '@/data/poh/c182t-cruise';
 import type { AircraftProfile } from '@/types/aircraft';
 
+/**
+ * The three target power settings the cruise screen offers. Section 4 puts
+ * normal cruise between 55% and 80% of rated MCP; these sit in the usual
+ * part of that band.
+ */
+const TARGET_POWER_PRESETS = [
+  { percentMcp: 65, label: 'Economy' },
+  { percentMcp: 70, label: 'Balanced' },
+  { percentMcp: 75, label: 'Performance' },
+];
+
 /** Labels the cruise RPM dropdown shows beside each setting. */
 const RPM_PRESETS = [
   { rpm: 2000, label: 'Economy' },
@@ -64,6 +75,7 @@ const cessna182t: AircraftProfile = {
 
   cruise: c182tCruise,
   rpmPresets: RPM_PRESETS,
+  targetPowerPresets: TARGET_POWER_PRESETS,
   takeoff: c182tPohBase.takeoff,
   landing: c182tPohBase.landing,
 
@@ -120,6 +132,7 @@ const cessna172sp: AircraftProfile = {
     { rpm: 2300, label: 'Balanced' },
     { rpm: 2400, label: 'Performance' },
   ],
+  targetPowerPresets: TARGET_POWER_PRESETS,
   takeoff: generatePlaceholderField({
     weightsLbs: [2200, 2550],
     altitudesFt: [0, 2000, 4000, 6000, 8000],
