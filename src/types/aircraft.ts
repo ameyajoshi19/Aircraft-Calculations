@@ -42,9 +42,19 @@ export interface RpmPreset {
   label?: string;
 }
 
-/** One of the target power settings the cruise screen offers. */
+/**
+ * One of the target power settings the cruise screen offers.
+ *
+ * Each preset pairs a target power with the RPM that setting is flown at —
+ * Economy is a low-RPM mode, not merely a lower number. When the RPM control
+ * is on Auto it takes this RPM, so choosing Economy really does give you
+ * 2000 RPM, even at an altitude where 2000 cannot reach the target power.
+ * Getting less power than asked for is the accepted cost of the quieter,
+ * leaner setting; the screen reports what it actually delivers.
+ */
 export interface TargetPowerPreset {
   percentMcp: number;
+  rpm: number;
   label: string;
 }
 
