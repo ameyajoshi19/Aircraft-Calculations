@@ -4,17 +4,21 @@
  * The 182T runs on the transcribed POH (document 182TPHBUS-00). The 172S is
  * still on synthetic stand-in data and is flagged as such everywhere it
  * appears, until its book is transcribed too.
+ *
+ * Imports here are relative and carry their .ts extension, like the POH data
+ * files, so `scripts/check-cruise.ts` can load this module under plain Node
+ * and check the profiles against their own books.
  */
-import { generatePlaceholderCruise, generatePlaceholderField } from '@/data/placeholder-generators';
+import { generatePlaceholderCruise, generatePlaceholderField } from './placeholder-generators.ts';
 import {
   C182T_BAGGAGE_LIMITS,
   C182T_STATIONS,
   C182T_USABLE_FUEL_ARM_IN,
   C182T_USABLE_FUEL_GAL,
   c182tPohBase,
-} from '@/data/poh/c182t';
-import { c182tCruise } from '@/data/poh/c182t-cruise';
-import type { AircraftProfile } from '@/types/aircraft';
+} from './poh/c182t.ts';
+import { c182tCruise } from './poh/c182t-cruise.ts';
+import type { AircraftProfile } from '../types/aircraft.ts';
 
 /**
  * The three cruise modes. Section 4 puts normal cruise between 55% and 80%
@@ -22,9 +26,9 @@ import type { AircraftProfile } from '@/types/aircraft';
  * the RPM it is flown at.
  */
 const C182T_TARGET_POWER_PRESETS = [
-  { percentMcp: 65, rpm: 2000, label: 'Economy' },
-  { percentMcp: 70, rpm: 2200, label: 'Balanced' },
-  { percentMcp: 75, rpm: 2400, label: 'Performance' },
+  { percentPower: 65, rpm: 2000, label: 'Economy' },
+  { percentPower: 70, rpm: 2200, label: 'Balanced' },
+  { percentPower: 75, rpm: 2400, label: 'Performance' },
 ];
 
 /** Labels the cruise RPM dropdown shows beside each setting. */
@@ -118,24 +122,32 @@ const cessna172sp: AircraftProfile = {
   ],
   combinedWeightLimits: [],
 
+  // Fixed-pitch propeller: no manifold pressure, so the placeholder table has
+  // no MP column either. Max cruise is 75% MCP, per the note on Figure 5-8.
   cruise: generatePlaceholderCruise({
-    altitudesFt: [0, 2000, 4000, 6000, 8000, 10000, 12000],
-    rpms: [2100, 2200, 2300, 2400],
-    manifoldPressures: [19, 20, 21, 22, 23, 24],
-    basePercentMcp: 50,
-    baseKtas: 100,
-    baseGph: 7.0,
+    altitudesFt: [2000, 4000, 6000, 8000, 10000, 12000],
+    rpms: [2100, 2200, 2300, 2400, 2500, 2600],
+    basePercentPower: 45,
+    baseKtas: 90,
+    baseGph: 6.0,
+    maxCruisePercentPower: 75,
+    percentPowerLabel: 'MCP',
   }),
   rpmPresets: [
     { rpm: 2100, label: 'Economy' },
     { rpm: 2200 },
     { rpm: 2300, label: 'Balanced' },
-    { rpm: 2400, label: 'Performance' },
+    { rpm: 2400 },
+    { rpm: 2500 },
+    { rpm: 2600, label: 'Performance' },
   ],
+  // On a fixed-pitch aircraft the RPM is the answer, not a second choice, so
+  // these RPMs are never used — they are here only to satisfy the shared
+  // shape, and the solver works the RPM out from the target power.
   targetPowerPresets: [
-    { percentMcp: 65, rpm: 2100, label: 'Economy' },
-    { percentMcp: 70, rpm: 2300, label: 'Balanced' },
-    { percentMcp: 75, rpm: 2400, label: 'Performance' },
+    { percentPower: 55, rpm: 2200, label: 'Economy' },
+    { percentPower: 65, rpm: 2400, label: 'Balanced' },
+    { percentPower: 75, rpm: 2600, label: 'Performance' },
   ],
   takeoff: generatePlaceholderField({
     weightsLbs: [2200, 2550],

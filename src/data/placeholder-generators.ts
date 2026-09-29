@@ -10,52 +10,94 @@
  *
  * Delete the caller, not this file's shape, when a real POH lands.
  */
-import type { CruiseAltitudeBlock, CruiseRow, FieldWeightBlock, FieldRow } from '@/data/poh/types';
+import type {
+  ConstantSpeedCruiseRow,
+  CruiseAltitudeBlock,
+  CruiseTable,
+  FieldRow,
+  FieldWeightBlock,
+  FixedPitchCruiseRow,
+} from './poh/types.ts';
 
 export interface CruiseSeed {
   altitudesFt: number[];
   /** Standard temperature at sea level falls 2°C per 1000 ft, as POH sheets round it. */
   rpms: number[];
-  manifoldPressures: number[];
-  /** %MCP produced at the lowest RPM and lowest MP on a standard day at sea level. */
-  basePercentMcp: number;
+  /**
+   * Omit for a fixed-pitch aircraft. A real fixed-pitch table has no manifold
+   * pressure column at all, so the generated one must not invent one.
+   */
+  manifoldPressures?: number[];
+  /** Percent power produced at the lowest RPM and lowest MP on a standard day at sea level. */
+  basePercentPower: number;
   baseKtas: number;
   baseGph: number;
+  maxCruisePercentPower: number;
+  percentPowerLabel: 'MCP' | 'BHP';
 }
 
-export function generatePlaceholderCruise(seed: CruiseSeed): CruiseAltitudeBlock[] {
-  return seed.altitudesFt.map((pressureAltitudeFt) => {
+export function generatePlaceholderCruise(seed: CruiseSeed): CruiseTable {
+  const cell = (
+    step: number,
+    rpmStep: number,
+    pressureAltitudeFt: number,
+    temperatureOffset: number
+  ): [number, number, number] => [
+    Math.round(seed.basePercentPower + step * 4 + rpmStep * 3 - temperatureOffset * 0.15),
+    Math.round(seed.baseKtas + step * 4 + rpmStep * 2 + pressureAltitudeFt / 1000),
+    Math.round((seed.baseGph + step * 0.6 + rpmStep * 0.4 - temperatureOffset * 0.02) * 10) / 10,
+  ];
+
+  const tempsFor = (pressureAltitudeFt: number) => {
     const stdTemp = 15 - (pressureAltitudeFt / 1000) * 2;
-    const rows: CruiseRow[] = [];
+    return { cold: stdTemp - 20, std: stdTemp, hot: stdTemp + 20 };
+  };
 
-    for (const rpm of seed.rpms) {
-      const rpmStep = seed.rpms.indexOf(rpm);
-      // The published MP range narrows with altitude, as it does in a real book.
-      const ceilingIndex = seed.manifoldPressures.length - 1 - Math.floor(pressureAltitudeFt / 4000);
-
-      for (let i = 0; i < seed.manifoldPressures.length; i++) {
-        const mp = seed.manifoldPressures[i];
-        if (i > Math.max(ceilingIndex, 1)) continue;
-
-        const cell = (temperatureOffset: number): [number, number, number] => {
-          const power = seed.basePercentMcp + i * 4 + rpmStep * 3 - temperatureOffset * 0.15;
-          return [
-            Math.round(power),
-            Math.round(seed.baseKtas + i * 4 + rpmStep * 2 + pressureAltitudeFt / 1000),
-            Math.round((seed.baseGph + i * 0.6 + rpmStep * 0.4 - temperatureOffset * 0.02) * 10) / 10,
-          ];
-        };
-
-        rows.push([rpm, mp, cell(-20), cell(0), cell(20)]);
-      }
-    }
-
+  if (!seed.manifoldPressures) {
+    const blocks: CruiseAltitudeBlock<FixedPitchCruiseRow>[] = seed.altitudesFt.map(
+      (pressureAltitudeFt) => ({
+        pressureAltitudeFt,
+        tempsC: tempsFor(pressureAltitudeFt),
+        rows: seed.rpms.map((rpm, rpmStep): FixedPitchCruiseRow => {
+          const at = (offset: number) => cell(rpmStep, rpmStep, pressureAltitudeFt, offset);
+          return [rpm, at(-20), at(0), at(20)];
+        }),
+      })
+    );
     return {
-      pressureAltitudeFt,
-      tempsC: { cold: stdTemp - 20, std: stdTemp, hot: stdTemp + 20 },
-      rows,
+      propeller: 'fixed-pitch',
+      maxCruisePercentPower: seed.maxCruisePercentPower,
+      percentPowerLabel: seed.percentPowerLabel,
+      blocks,
     };
-  });
+  }
+
+  const manifoldPressures = seed.manifoldPressures;
+  const blocks: CruiseAltitudeBlock<ConstantSpeedCruiseRow>[] = seed.altitudesFt.map(
+    (pressureAltitudeFt) => {
+      const rows: ConstantSpeedCruiseRow[] = [];
+
+      for (const [rpmStep, rpm] of seed.rpms.entries()) {
+        // The published MP range narrows with altitude, as it does in a real book.
+        const ceilingIndex = manifoldPressures.length - 1 - Math.floor(pressureAltitudeFt / 4000);
+
+        for (let i = 0; i < manifoldPressures.length; i++) {
+          if (i > Math.max(ceilingIndex, 1)) continue;
+          const at = (offset: number) => cell(i, rpmStep, pressureAltitudeFt, offset);
+          rows.push([rpm, manifoldPressures[i], at(-20), at(0), at(20)]);
+        }
+      }
+
+      return { pressureAltitudeFt, tempsC: tempsFor(pressureAltitudeFt), rows };
+    }
+  );
+
+  return {
+    propeller: 'constant-speed',
+    maxCruisePercentPower: seed.maxCruisePercentPower,
+    percentPowerLabel: seed.percentPowerLabel,
+    blocks,
+  };
 }
 
 export interface FieldSeed {

@@ -12,5 +12,8 @@
     "types": ["node"],
     "noEmit": true
   },
+  // The root config excludes scripts/; clear that here or this project would
+  // inherit it and silently typecheck nothing in this directory.
+  "exclude": [],
   "include": ["**/*.ts", "../src/**/*.ts"]
 }

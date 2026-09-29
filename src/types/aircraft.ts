@@ -6,7 +6,7 @@
  * flow through one code path. `dataSource: 'placeholder'` marks an aircraft
  * whose numbers are demo values, so every screen can warn on it.
  */
-import type { CruiseAltitudeBlock, FieldWeightBlock } from '@/data/poh/types';
+import type { CruiseTable, FieldWeightBlock } from '../data/poh/types.ts';
 
 export type DataSource = 'placeholder' | 'poh';
 
@@ -45,15 +45,20 @@ export interface RpmPreset {
 /**
  * One of the target power settings the cruise screen offers.
  *
- * Each preset pairs a target power with the RPM that setting is flown at —
- * Economy is a low-RPM mode, not merely a lower number. When the RPM control
- * is on Auto it takes this RPM, so choosing Economy really does give you
- * 2000 RPM, even at an altitude where 2000 cannot reach the target power.
- * Getting less power than asked for is the accepted cost of the quieter,
- * leaner setting; the screen reports what it actually delivers.
+ * On a constant-speed aircraft each preset pairs a target power with the RPM
+ * that setting is flown at — Economy is a low-RPM mode, not merely a lower
+ * number. When the RPM control is on Auto it takes this RPM, so choosing
+ * Economy really does give you 2000 RPM, even at an altitude where 2000
+ * cannot reach the target power. Getting less power than asked for is the
+ * accepted cost of the quieter, leaner setting; the screen reports what it
+ * actually delivers.
+ *
+ * On a fixed-pitch aircraft there is only one control, so `rpm` is not a
+ * choice the pilot makes alongside the power — it is the answer. The preset's
+ * `rpm` is ignored there and the solver works out the RPM for the target.
  */
 export interface TargetPowerPreset {
-  percentMcp: number;
+  percentPower: number;
   rpm: number;
   label: string;
 }
@@ -81,7 +86,7 @@ export interface AircraftProfile {
   envelope: EnvelopePoint[];
   combinedWeightLimits: CombinedWeightLimit[];
 
-  cruise: readonly CruiseAltitudeBlock[];
+  cruise: CruiseTable;
   rpmPresets: RpmPreset[];
   targetPowerPresets: TargetPowerPreset[];
   takeoff: readonly FieldWeightBlock[];

@@ -2,29 +2,88 @@
  * Types shaped to match how a Cessna POH actually tabulates performance,
  * rather than how the app happens to want to consume it.
  *
- * Two differences from the earlier placeholder model matter:
+ * Three differences from the earlier placeholder model matter:
  *
- * 1. Cruise is indexed by RPM *and* manifold pressure, and yields %MCP,
- *    KTAS and GPH. You do not look up "65% power" and get an RPM/MP back —
- *    many RPM/MP combinations produce a given %MCP.
- * 2. Takeoff/landing tables are indexed by *actual OAT* (0/10/20/30/40 °C),
+ * 1. Cruise is indexed by the controls the pilot actually sets, and yields
+ *    percent power, KTAS and GPH. You do not look up "65% power" and get a
+ *    setting back — many settings produce a given percent power.
+ * 2. Which controls those are depends on the propeller. A constant-speed
+ *    aircraft (182T) is indexed by RPM *and* manifold pressure. A fixed-pitch
+ *    one (172S, 162) has no propeller control and no MP to set, so its table
+ *    has no MP column at all. That is a different table, not a table with
+ *    values missing.
+ * 3. Takeoff/landing tables are indexed by *actual OAT* (0/10/20/30/40 °C),
  *    not by deviation from ISA. Cruise tables are the opposite — they use
  *    ISA-relative columns. Conflating the two silently produces wrong
  *    distances on a non-standard day.
  */
 
-/** A single cruise cell: [%MCP, KTAS, GPH]. `null` where the POH prints "---". */
-export type CruiseCell = readonly [percentMcp: number, ktas: number, gph: number] | null;
+/**
+ * A single cruise cell: [percent power, KTAS, GPH]. `null` where the POH
+ * prints "---" for a setting it does not publish.
+ */
+export type CruiseCell = readonly [percentPower: number, ktas: number, gph: number] | null;
 
-/** One tabulated line: [RPM, MP inHg, 20°C-below cell, standard cell, 20°C-above cell]. */
-export type CruiseRow = readonly [rpm: number, mp: number, cold: CruiseCell, std: CruiseCell, hot: CruiseCell];
+/**
+ * Constant-speed propeller. The book indexes each line by RPM *and* manifold
+ * pressure, because the pilot sets both: RPM with the propeller control, MP
+ * with the throttle.
+ */
+export type ConstantSpeedCruiseRow = readonly [
+  rpm: number,
+  mp: number,
+  cold: CruiseCell,
+  std: CruiseCell,
+  hot: CruiseCell,
+];
 
-export interface CruiseAltitudeBlock {
+/**
+ * Fixed-pitch propeller. There is one control — the throttle — and RPM is
+ * what it reads out, so RPM alone indexes the line.
+ */
+export type FixedPitchCruiseRow = readonly [
+  rpm: number,
+  cold: CruiseCell,
+  std: CruiseCell,
+  hot: CruiseCell,
+];
+
+export type CruiseRow = ConstantSpeedCruiseRow | FixedPitchCruiseRow;
+
+/** One published cruise sheet: a pressure altitude and its three temperature columns. */
+export interface CruiseAltitudeBlock<Row extends CruiseRow = CruiseRow> {
   pressureAltitudeFt: number;
   /** The actual OAT the POH prints above each of its three temperature columns. */
   tempsC: { cold: number; std: number; hot: number };
-  rows: readonly CruiseRow[];
+  rows: readonly Row[];
 }
+
+/**
+ * A whole cruise table, tagged by propeller type so the solver and the screens
+ * cannot silently treat one kind as the other.
+ *
+ * `maxCruisePercentPower` is the cap printed in the table's own NOTE (80% for
+ * the 182T, 75% for the 172S and 162) — settings above it are tabulated only
+ * to aid interpolation and must not be offered as a cruise setting. It lives
+ * here rather than as a global constant because it genuinely differs by
+ * aircraft.
+ *
+ * `percentPowerLabel` is how that column is headed: the 182T and 172S print
+ * "% MCP", the 162 prints "% BHP". The screens show whichever the book uses.
+ */
+export type CruiseTable =
+  | {
+      propeller: 'constant-speed';
+      maxCruisePercentPower: number;
+      percentPowerLabel: 'MCP' | 'BHP';
+      blocks: readonly CruiseAltitudeBlock<ConstantSpeedCruiseRow>[];
+    }
+  | {
+      propeller: 'fixed-pitch';
+      maxCruisePercentPower: number;
+      percentPowerLabel: 'MCP' | 'BHP';
+      blocks: readonly CruiseAltitudeBlock<FixedPitchCruiseRow>[];
+    };
 
 /** [pressure altitude ft, ground roll ft, total ft to clear a 50 ft obstacle]. */
 export type FieldRow = readonly [pressureAltitudeFt: number, groundRollFt: number | null, over50ftFt: number | null];
@@ -63,7 +122,7 @@ export interface PohDocument {
   standardEmptyWeightLbs: number;
   maxUsefulLoadLbs: number;
   cgEnvelope: readonly CgEnvelopePoint[];
-  cruise: readonly CruiseAltitudeBlock[];
+  cruise: CruiseTable;
   takeoff: readonly FieldWeightBlock[];
   landing: readonly FieldWeightBlock[];
   climbMaxRate: readonly ClimbRow[];

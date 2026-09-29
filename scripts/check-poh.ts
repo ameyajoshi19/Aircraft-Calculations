@@ -17,7 +17,7 @@ import {
   POH_CORRECTIONS,
   c182tPohBase as c182tPoh,
 } from '../src/data/poh/c182t.ts';
-import type { FieldWeightBlock } from '../src/data/poh/types.ts';
+import type { CruiseRow, CruiseTable, FieldWeightBlock } from '../src/data/poh/types.ts';
 
 const problems: string[] = [];
 let checks = 0;
@@ -28,76 +28,106 @@ function check(condition: boolean, message: string) {
 }
 
 // --- Cruise -----------------------------------------------------------------
-// At a fixed altitude and RPM, raising manifold pressure must raise power,
-// speed and fuel flow. Within one row, a hotter (thinner) column must give
-// less power and less fuel flow than a colder one.
+// At a fixed altitude, opening the continuous control (manifold pressure on a
+// constant-speed aircraft, RPM on a fixed-pitch one) must raise power, speed
+// and fuel flow. Within one row, a hotter (thinner) column must give less
+// power and less fuel flow than a colder one.
 
-for (const block of c182tCruise) {
-  const alt = block.pressureAltitudeFt;
+interface CruiseBounds {
+  percentPower: [number, number];
+  ktas: [number, number];
+  gph: [number, number];
+}
 
-  check(
-    block.tempsC.cold < block.tempsC.std && block.tempsC.std < block.tempsC.hot,
-    `${alt} ft: temperature columns are not ordered cold < std < hot`
-  );
-  check(
-    block.tempsC.hot - block.tempsC.std === 20 && block.tempsC.std - block.tempsC.cold === 20,
-    `${alt} ft: temperature columns are not 20°C apart`
-  );
+function checkCruiseTable(label: string, table: CruiseTable, bounds: CruiseBounds) {
+  // On a constant-speed table the rows at one RPM form a family varying by MP;
+  // on a fixed-pitch table there is one family and RPM is what varies.
+  const constantSpeed = table.propeller === 'constant-speed';
+  const controlName = constantSpeed ? 'MP' : 'RPM';
+  const controlOf = (row: CruiseRow) => (row.length === 5 ? row[1] : row[0]);
+  const cellsOf = (row: CruiseRow) =>
+    row.length === 5 ? ([row[2], row[3], row[4]] as const) : ([row[1], row[2], row[3]] as const);
 
-  const byRpm = new Map<number, typeof block.rows>();
-  for (const row of block.rows) {
-    byRpm.set(row[0], [...(byRpm.get(row[0]) ?? []), row] as typeof block.rows);
-  }
+  for (const block of table.blocks) {
+    const alt = block.pressureAltitudeFt;
 
-  for (const [rpm, rows] of byRpm) {
-    // Tuple layout is [rpm, mp, cold, std, hot], so the cells are at 2-4.
-    const columns = [2, 3, 4] as const;
-    const names = ['cold', 'std', 'hot'];
+    check(
+      block.tempsC.cold < block.tempsC.std && block.tempsC.std < block.tempsC.hot,
+      `${label} ${alt} ft: temperature columns are not ordered cold < std < hot`
+    );
+    check(
+      block.tempsC.hot - block.tempsC.std === 20 && block.tempsC.std - block.tempsC.cold === 20,
+      `${label} ${alt} ft: temperature columns are not 20°C apart`
+    );
 
-    // Monotonic in manifold pressure, descending MP order in the source.
-    for (let c = 0; c < columns.length; c++) {
-      const cells = rows
-        .map((r) => ({ mp: r[1], cell: r[columns[c]] }))
-        .filter((x) => x.cell !== null)
-        .sort((a, b) => a.mp - b.mp);
-
-      for (let i = 1; i < cells.length; i++) {
-        const lo = cells[i - 1].cell!;
-        const hi = cells[i].cell!;
-        const where = `${alt} ft / ${rpm} RPM / ${names[c]} / MP ${cells[i - 1].mp}->${cells[i].mp}`;
-        check(hi[0] >= lo[0], `${where}: %MCP decreased with higher MP (${lo[0]} -> ${hi[0]})`);
-        check(hi[1] >= lo[1], `${where}: KTAS decreased with higher MP (${lo[1]} -> ${hi[1]})`);
-        check(hi[2] >= lo[2], `${where}: GPH decreased with higher MP (${lo[2]} -> ${hi[2]})`);
-      }
+    const families = new Map<number | null, CruiseRow[]>();
+    for (const row of block.rows) {
+      const key = constantSpeed ? row[0] : null;
+      families.set(key, [...(families.get(key) ?? []), row]);
     }
 
-    // Across temperature columns within a single MP row.
-    for (const row of rows) {
-      const [, mp, cold, std, hot] = row;
-      const where = `${alt} ft / ${rpm} RPM / MP ${mp}`;
-      if (cold && std) {
-        check(std[0] <= cold[0], `${where}: %MCP rose from cold to std (${cold[0]} -> ${std[0]})`);
-        check(std[2] <= cold[2], `${where}: GPH rose from cold to std (${cold[2]} -> ${std[2]})`);
-      }
-      if (std && hot) {
-        check(hot[0] <= std[0], `${where}: %MCP rose from std to hot (${std[0]} -> ${hot[0]})`);
-        check(hot[2] <= std[2], `${where}: GPH rose from std to hot (${std[2]} -> ${hot[2]})`);
-      }
-    }
+    for (const [rpm, rows] of families) {
+      const family = rpm === null ? `${label} ${alt} ft` : `${label} ${alt} ft / ${rpm} RPM`;
+      const names = ['cold', 'std', 'hot'] as const;
 
-    // Sanity bounds.
-    for (const row of rows) {
-      for (let c = 0; c < columns.length; c++) {
-        const cell = row[columns[c]];
-        if (!cell) continue;
-        const where = `${alt} ft / ${rpm} RPM / MP ${row[1]} / ${names[c]}`;
-        check(cell[0] >= 40 && cell[0] <= 90, `${where}: %MCP ${cell[0]} outside 40-90`);
-        check(cell[1] >= 100 && cell[1] <= 160, `${where}: KTAS ${cell[1]} outside 100-160`);
-        check(cell[2] >= 8 && cell[2] <= 16, `${where}: GPH ${cell[2]} outside 8-16`);
+      // Monotonic in the continuous control.
+      for (let c = 0; c < names.length; c++) {
+        const cells = rows
+          .map((r) => ({ control: controlOf(r), cell: cellsOf(r)[c] }))
+          .filter((x) => x.cell !== null)
+          .sort((a, b) => a.control - b.control);
+
+        for (let i = 1; i < cells.length; i++) {
+          const lo = cells[i - 1].cell!;
+          const hi = cells[i].cell!;
+          const where = `${family} / ${names[c]} / ${controlName} ${cells[i - 1].control}->${cells[i].control}`;
+          check(hi[0] >= lo[0], `${where}: percent power decreased (${lo[0]} -> ${hi[0]})`);
+          check(hi[1] >= lo[1], `${where}: KTAS decreased (${lo[1]} -> ${hi[1]})`);
+          check(hi[2] >= lo[2], `${where}: GPH decreased (${lo[2]} -> ${hi[2]})`);
+        }
+      }
+
+      for (const row of rows) {
+        const [cold, std, hot] = cellsOf(row);
+        const where = `${family} / ${controlName} ${controlOf(row)}`;
+
+        // Across temperature columns within a single row.
+        if (cold && std) {
+          check(std[0] <= cold[0], `${where}: percent power rose from cold to std (${cold[0]} -> ${std[0]})`);
+          check(std[2] <= cold[2], `${where}: GPH rose from cold to std (${cold[2]} -> ${std[2]})`);
+        }
+        if (std && hot) {
+          check(hot[0] <= std[0], `${where}: percent power rose from std to hot (${std[0]} -> ${hot[0]})`);
+          check(hot[2] <= std[2], `${where}: GPH rose from std to hot (${std[2]} -> ${hot[2]})`);
+        }
+
+        // Sanity bounds.
+        const cells = cellsOf(row);
+        for (let c = 0; c < names.length; c++) {
+          const cell = cells[c];
+          if (!cell) continue;
+          const at = `${where} / ${names[c]}`;
+          const [percentPower, ktas, gph] = cell;
+          check(
+            percentPower >= bounds.percentPower[0] && percentPower <= bounds.percentPower[1],
+            `${at}: percent power ${percentPower} outside ${bounds.percentPower.join('-')}`
+          );
+          check(
+            ktas >= bounds.ktas[0] && ktas <= bounds.ktas[1],
+            `${at}: KTAS ${ktas} outside ${bounds.ktas.join('-')}`
+          );
+          check(gph >= bounds.gph[0] && gph <= bounds.gph[1], `${at}: GPH ${gph} outside ${bounds.gph.join('-')}`);
+        }
       }
     }
   }
 }
+
+checkCruiseTable('182T', c182tCruise, {
+  percentPower: [40, 90],
+  ktas: [100, 160],
+  gph: [8, 16],
+});
 
 // --- Takeoff and landing ----------------------------------------------------
 // Distances grow with altitude, with temperature, and with weight.
@@ -285,7 +315,7 @@ for (const correction of POH_CORRECTIONS) {
 }
 
 // --- Report -----------------------------------------------------------------
-const cruiseCells = c182tCruise.reduce(
+const cruiseCells = c182tCruise.blocks.reduce(
   (n, b) => n + b.rows.reduce((m, r) => m + [r[2], r[3], r[4]].filter(Boolean).length, 0),
   0
 );

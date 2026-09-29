@@ -23,10 +23,16 @@ export default function CruiseScreen() {
   const { selectedProfile: profile } = useAircraft();
   const { colors } = useTheme();
 
+  // A fixed-pitch aircraft has one control. RPM is not a second thing to pick
+  // alongside the power — it is the answer, so the screen has no MP readout
+  // and the RPM dropdown means "pin this instead of solving for it".
+  const fixedPitch = profile.cruise.propeller === 'fixed-pitch';
+  const powerUnit = `% ${profile.cruise.percentPowerLabel}`;
+
   const [altitudeFt, setAltitudeFt] = useState(8000);
   const [isaDeviationC, setIsaDeviationC] = useState(0);
-  const [targetPercentMcp, setTargetPercentMcp] = useState(
-    profile.targetPowerPresets[0].percentMcp
+  const [targetPercentPower, setTargetPercentPower] = useState(
+    profile.targetPowerPresets[0].percentPower
   );
   const [rpmChoice, setRpmChoice] = useState<number | typeof AUTO>(AUTO);
 
@@ -38,17 +44,17 @@ export default function CruiseScreen() {
       solveCruise(profile.cruise, {
         altitudeFt: altitude,
         oatC,
-        targetPercentMcp,
+        targetPercentPower,
         rpm: rpmChoice === AUTO ? undefined : rpmChoice,
       }),
-    [profile.cruise, altitude, oatC, targetPercentMcp, rpmChoice]
+    [profile.cruise, altitude, oatC, targetPercentPower, rpmChoice]
   );
 
   const powerOptions = useMemo(
     () =>
       profile.targetPowerPresets.map((preset) => ({
-        value: preset.percentMcp,
-        label: `${preset.percentMcp}%`,
+        value: preset.percentPower,
+        label: `${preset.percentPower}%`,
         sublabel: preset.label,
       })),
     [profile.targetPowerPresets]
@@ -56,14 +62,18 @@ export default function CruiseScreen() {
 
   const rpmOptions = useMemo(
     () => [
-      { value: AUTO as number | typeof AUTO, label: 'Auto', note: 'Lowest RPM that reaches target' },
+      {
+        value: AUTO as number | typeof AUTO,
+        label: 'Auto',
+        note: fixedPitch ? 'RPM that makes the target' : 'Lowest RPM that reaches target',
+      },
       ...profile.rpmPresets.map((preset) => ({
         value: preset.rpm as number | typeof AUTO,
         label: `${preset.rpm} RPM`,
         note: preset.label,
       })),
     ],
-    [profile.rpmPresets]
+    [profile.rpmPresets, fixedPitch]
   );
 
   // Range on 45 minutes' reserve, matching the basis of the POH's own Range
@@ -75,6 +85,11 @@ export default function CruiseScreen() {
     const reserveGal = (RESERVE_MINUTES / 60) * solution.gph;
     return Math.round(((profile.usableFuelGal - reserveGal) / solution.gph) * solution.ktas);
   }, [solution, profile.usableFuelGal]);
+
+  // A pinned RPM that overshoots the target is the pilot's own choice, not a
+  // shortfall, so only an undershoot is worth warning about.
+  const shortOfTarget =
+    solution !== null && !solution.targetAchieved && solution.percentPower < targetPercentPower;
 
   return (
     <Screen
@@ -110,8 +125,8 @@ export default function CruiseScreen() {
         <Segment
           label="Target power"
           options={powerOptions}
-          value={targetPercentMcp}
-          onChange={setTargetPercentMcp}
+          value={targetPercentPower}
+          onChange={setTargetPercentPower}
         />
         <Dropdown label="RPM" value={rpmChoice} options={rpmOptions} onChange={setRpmChoice} />
       </Section>
@@ -120,12 +135,14 @@ export default function CruiseScreen() {
 
       <Section label="Set">
         <DisplayPair>
-          <Display label="RPM" value={solution ? String(solution.rpm) : '—'} note={rpmChoice === AUTO ? 'auto' : 'selected'} />
           <Display
-            label="MP"
-            value={solution ? solution.manifoldPressureInHg.toFixed(1) : '—'}
-            note="in Hg"
+            label="RPM"
+            value={solution ? String(solution.rpm) : '—'}
+            note={rpmChoice === AUTO ? 'auto' : 'selected'}
           />
+          {solution?.manifoldPressureInHg !== undefined ? (
+            <Display label="MP" value={solution.manifoldPressureInHg.toFixed(1)} note="in Hg" />
+          ) : null}
           <Display label="Fuel" value={solution ? solution.gph.toFixed(1) : '—'} note="gph, leaned" />
         </DisplayPair>
       </Section>
@@ -134,7 +151,7 @@ export default function CruiseScreen() {
 
       <Section label="Expect">
         <StatRow>
-          <Stat label="Power" value={solution ? String(solution.percentMcp) : '—'} unit="% MCP" />
+          <Stat label="Power" value={solution ? String(solution.percentPower) : '—'} unit={powerUnit} />
           <Stat label="TAS" value={solution ? String(solution.ktas) : '—'} unit="kts" />
           <Stat label="Range" value={rangeNm !== null ? String(rangeNm) : '—'} unit="nm" />
         </StatRow>
@@ -146,22 +163,26 @@ export default function CruiseScreen() {
         {solution ? (
           <View style={[styles.targetRow, { borderColor: colors.hairline }]}>
             <Text variant="caption" tone="muted">
-              Target {solution.targetPercentMcp}%
+              Target {solution.targetPercentPower}%
             </Text>
             <Text variant="caption" tone={solution.targetAchieved ? 'ok' : 'warning'}>
               {solution.targetAchieved
                 ? 'Target met'
-                : `Highest the POH publishes here is ${solution.percentMcp}%`}
+                : shortOfTarget
+                  ? `Highest the POH publishes here is ${solution.percentPower}%`
+                  : `This setting gives ${solution.percentPower}%`}
             </Text>
           </View>
         ) : null}
       </Section>
 
-      {solution && !solution.targetAchieved ? (
+      {shortOfTarget && solution ? (
         <Notice tone="warning">
-          {rpmChoice === AUTO
-            ? `No published setting reaches ${solution.targetPercentMcp}% at this altitude and temperature. Descend, or accept ${solution.percentMcp}%.`
-            : `${rpmChoice} RPM cannot reach ${solution.targetPercentMcp}% here. Try a higher RPM, or accept ${solution.percentMcp}%.`}
+          {solution.limitedBy === 'max-cruise-power'
+            ? `${solution.targetPercentPower}% is above the POH's maximum cruise power of ${profile.cruise.maxCruisePercentPower}${powerUnit}. Settings above it are printed only to aid interpolation.`
+            : rpmChoice === AUTO
+              ? `No published setting reaches ${solution.targetPercentPower}% at this altitude and temperature. Descend, or accept ${solution.percentPower}%.`
+              : `${rpmChoice} RPM cannot reach ${solution.targetPercentPower}% here. Try a higher RPM, or accept ${solution.percentPower}%.`}
         </Notice>
       ) : null}
 

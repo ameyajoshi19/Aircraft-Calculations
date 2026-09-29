@@ -22,8 +22,8 @@ export default function FuelScreen() {
   const { selectedProfile: profile } = useAircraft();
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
-  const [targetPercentMcp, setTargetPercentMcp] = useState(
-    profile.targetPowerPresets[0].percentMcp
+  const [targetPercentPower, setTargetPercentPower] = useState(
+    profile.targetPowerPresets[0].percentPower
   );
   const [rpmChoice, setRpmChoice] = useState<number | typeof AUTO>(AUTO);
   const [reserveMinutes, setReserveMinutes] = useState(45);
@@ -36,17 +36,17 @@ export default function FuelScreen() {
       solveCruise(profile.cruise, {
         altitudeFt: altitude,
         oatC: isaTemperatureC(altitude),
-        targetPercentMcp,
+        targetPercentPower,
         rpm: rpmChoice === AUTO ? undefined : rpmChoice,
       }),
-    [profile.cruise, altitude, targetPercentMcp, rpmChoice]
+    [profile.cruise, altitude, targetPercentPower, rpmChoice]
   );
 
   const powerOptions = useMemo(
     () =>
       profile.targetPowerPresets.map((preset) => ({
-        value: preset.percentMcp,
-        label: `${preset.percentMcp}%`,
+        value: preset.percentPower,
+        label: `${preset.percentPower}%`,
         sublabel: preset.label,
       })),
     [profile.targetPowerPresets]
@@ -54,14 +54,21 @@ export default function FuelScreen() {
 
   const rpmOptions = useMemo(
     () => [
-      { value: AUTO as number | typeof AUTO, label: 'Auto', note: 'Lowest RPM that reaches target' },
+      {
+        value: AUTO as number | typeof AUTO,
+        label: 'Auto',
+        note:
+          profile.cruise.propeller === 'fixed-pitch'
+            ? 'RPM that makes the target'
+            : 'Lowest RPM that reaches target',
+      },
       ...profile.rpmPresets.map((preset) => ({
         value: preset.rpm as number | typeof AUTO,
         label: `${preset.rpm} RPM`,
         note: preset.label,
       })),
     ],
-    [profile.rpmPresets]
+    [profile.rpmPresets, profile.cruise.propeller]
   );
 
   const plan = useMemo(
@@ -99,8 +106,8 @@ export default function FuelScreen() {
         <Segment
           label="Target power"
           options={powerOptions}
-          value={targetPercentMcp}
-          onChange={setTargetPercentMcp}
+          value={targetPercentPower}
+          onChange={setTargetPercentPower}
         />
         <Dropdown label="RPM" value={rpmChoice} options={rpmOptions} onChange={setRpmChoice} />
         <SliderField
@@ -125,9 +132,18 @@ export default function FuelScreen() {
       <Section label="Breakdown">
         <DataRow
           label="Setting"
-          value={solution ? `${solution.rpm} RPM · ${solution.manifoldPressureInHg.toFixed(1)}"` : '—'}
+          value={
+            solution
+              ? solution.manifoldPressureInHg !== undefined
+                ? `${solution.rpm} RPM · ${solution.manifoldPressureInHg.toFixed(1)}"`
+                : `${solution.rpm} RPM`
+              : '—'
+          }
         />
-        <DataRow label="Power delivered" value={solution ? `${solution.percentMcp}% MCP` : '—'} />
+        <DataRow
+          label="Power delivered"
+          value={solution ? `${solution.percentPower}% ${profile.cruise.percentPowerLabel}` : '—'}
+        />
         <DataRow label="Usable fuel" value={`${profile.usableFuelGal} gal`} />
         <DataRow label="Reserve" value={plan ? `${plan.reserveGal.toFixed(1)} gal` : '—'} />
         <DataRow

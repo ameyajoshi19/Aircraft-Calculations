@@ -22,7 +22,7 @@
  * that comparison, and `npm run check:poh` for the internal consistency
  * checks that run without the book.
  */
-import type { CruiseAltitudeBlock, CruiseRow } from './types';
+import type { ConstantSpeedCruiseRow, CruiseAltitudeBlock, CruiseTable } from './types';
 
 /**
  * Every cruise cell has now been read from a clean page image. Pages 5-26,
@@ -36,7 +36,7 @@ import type { CruiseAltitudeBlock, CruiseRow } from './types';
 export const UNREADABLE_CELLS: readonly { page: string; altitudeFt: number; rpm: number; mp: number }[] = [];
 
 // Sheets 1-2, pages 5-22 / 5-23.
-const SEA_LEVEL: CruiseRow[] = [
+const SEA_LEVEL: ConstantSpeedCruiseRow[] = [
   [2400, 27, null, null, null],
   [2400, 26, null, null, [82, 140, 14.3]],
   [2400, 25, [84, 134, 14.5], [81, 136, 14.0], [78, 138, 13.5]],
@@ -84,7 +84,7 @@ const SEA_LEVEL: CruiseRow[] = [
 ];
 
 // Sheets 3-4, pages 5-24 / 5-25.
-const FT_2000: CruiseRow[] = [
+const FT_2000: ConstantSpeedCruiseRow[] = [
   [2400, 26, null, null, null],
   [2400, 25, null, [83, 140, 14.4], [80, 142, 13.9]],
   [2400, 24, [81, 136, 14.1], [79, 138, 13.6], [76, 139, 13.2]],
@@ -127,7 +127,7 @@ const FT_2000: CruiseRow[] = [
 ];
 
 // Sheets 5-6, pages 5-26 / 5-27.
-const FT_4000: CruiseRow[] = [
+const FT_4000: ConstantSpeedCruiseRow[] = [
   [2400, 25, null, null, [83, 146, 14.4]],
   [2400, 24, [84, 140, 14.6], [81, 142, 14.0], [78, 143, 13.6]],
   [2400, 23, [79, 138, 13.7], [76, 139, 13.2], [74, 139, 12.8]],
@@ -165,7 +165,7 @@ const FT_4000: CruiseRow[] = [
 ];
 
 // Sheet 7, page 5-28.
-const FT_6000: CruiseRow[] = [
+const FT_6000: ConstantSpeedCruiseRow[] = [
   [2400, 23, [82, 142, 14.2], [79, 143, 13.6], [76, 144, 13.2]],
   [2400, 22, [77, 138, 13.3], [74, 139, 12.8], [72, 139, 12.4]],
   [2400, 21, [72, 135, 12.5], [69, 135, 12.1], [67, 135, 11.7]],
@@ -198,7 +198,7 @@ const FT_6000: CruiseRow[] = [
 ];
 
 // Sheet 8, page 5-29.
-const FT_8000: CruiseRow[] = [
+const FT_8000: ConstantSpeedCruiseRow[] = [
   [2400, 21, [74, 139, 12.9], [72, 139, 12.5], [69, 140, 12.1]],
   [2400, 20, [69, 134, 12.1], [67, 135, 11.7], [65, 135, 11.4]],
   [2400, 19, [64, 130, 11.4], [62, 130, 11.0], [60, 130, 10.7]],
@@ -225,7 +225,7 @@ const FT_8000: CruiseRow[] = [
 ];
 
 // Sheet 9, page 5-30.
-const FT_10000: CruiseRow[] = [
+const FT_10000: ConstantSpeedCruiseRow[] = [
   [2400, 20, [72, 139, 12.5], [69, 139, 12.1], [67, 139, 11.7]],
   [2400, 19, [67, 134, 11.7], [64, 134, 11.3], [62, 134, 11.0]],
   [2400, 18, [62, 129, 11.0], [59, 129, 10.6], [57, 128, 10.3]],
@@ -249,7 +249,7 @@ const FT_10000: CruiseRow[] = [
 ];
 
 // Sheet 10, page 5-31.
-const FT_12000: CruiseRow[] = [
+const FT_12000: ConstantSpeedCruiseRow[] = [
   [2400, 18, [64, 133, 11.3], [61, 133, 10.9], [59, 133, 10.6]],
   [2400, 17, [59, 127, 10.5], [56, 127, 10.2], [54, 126, 10.0]],
   [2400, 16, [53, 121, 9.8], [51, 120, 9.6], [50, 119, 9.3]],
@@ -269,7 +269,7 @@ const FT_12000: CruiseRow[] = [
 ];
 
 // Sheet 11, page 5-32.
-const FT_14000: CruiseRow[] = [
+const FT_14000: ConstantSpeedCruiseRow[] = [
   [2400, 16, [56, 126, 10.1], [53, 125, 9.8], [51, 124, 9.6]],
   [2400, 15, [50, 118, 9.4], [48, 117, 9.1], [47, 116, 8.9]],
   [2300, 16, [53, 123, 9.8], [51, 122, 9.6], [50, 121, 9.3]],
@@ -277,7 +277,7 @@ const FT_14000: CruiseRow[] = [
   [2100, 16, [49, 116, 9.2], [47, 115, 8.9], [45, 114, 8.7]],
 ];
 
-export const c182tCruise: CruiseAltitudeBlock[] = [
+const blocks: CruiseAltitudeBlock<ConstantSpeedCruiseRow>[] = [
   { pressureAltitudeFt: 0, tempsC: { cold: -5, std: 15, hot: 35 }, rows: SEA_LEVEL },
   { pressureAltitudeFt: 2000, tempsC: { cold: -9, std: 11, hot: 31 }, rows: FT_2000 },
   { pressureAltitudeFt: 4000, tempsC: { cold: -13, std: 7, hot: 27 }, rows: FT_4000 },
@@ -288,8 +288,16 @@ export const c182tCruise: CruiseAltitudeBlock[] = [
   { pressureAltitudeFt: 14000, tempsC: { cold: -33, std: -13, hot: 7 }, rows: FT_14000 },
 ];
 
-/** POH note on every cruise sheet: settings above this exist only to aid interpolation. */
-export const MAX_CRUISE_PERCENT_MCP = 80;
+export const c182tCruise: CruiseTable = {
+  // The 182T has a constant-speed propeller, so every row is indexed by both
+  // RPM and manifold pressure.
+  propeller: 'constant-speed',
+  // NOTE on every sheet: "Maximum cruise power is 80% MCP. Power settings
+  // above 80% are listed to aid interpolation."
+  maxCruisePercentPower: 80,
+  percentPowerLabel: 'MCP',
+  blocks,
+};
 
 /**
  * POH Figure 4-3 note (page 4-34): the cruise charts assume maximum gross

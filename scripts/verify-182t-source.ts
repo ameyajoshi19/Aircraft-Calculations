@@ -146,7 +146,7 @@ const COLUMNS = ['cold', 'std', 'hot'] as const;
 const CELL_FIELDS = ['%MCP', 'KTAS', 'GPH'] as const;
 let cruiseCells = 0;
 
-for (const block of c182tCruise) {
+for (const block of c182tCruise.blocks) {
   const source = cruiseByAltitude.get(block.pressureAltitudeFt);
   if (!source) {
     failures.push(`cruise ${block.pressureAltitudeFt} ft: no such pressure altitude in the source`);
@@ -193,7 +193,7 @@ for (const block of c182tCruise) {
   }
 }
 for (const altitudeFt of cruiseByAltitude.keys()) {
-  if (!c182tCruise.some((b) => b.pressureAltitudeFt === altitudeFt)) {
+  if (!c182tCruise.blocks.some((b) => b.pressureAltitudeFt === altitudeFt)) {
     failures.push(`cruise ${altitudeFt} ft: sheet in the source but no block transcribed`);
   }
 }
