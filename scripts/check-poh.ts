@@ -9,6 +9,13 @@
  *
  * Run: npm run check:poh
  */
+import { c172sCruise } from '../src/data/poh/c172s-cruise.ts';
+import {
+  C172S_BAGGAGE_LIMITS,
+  C172S_STATIONS,
+  C172S_USABLE_FUEL_ARM_IN,
+  c172sPohBase as c172sPoh,
+} from '../src/data/poh/c172s.ts';
 import { c182tCruise } from '../src/data/poh/c182t-cruise.ts';
 import {
   C182T_BAGGAGE_LIMITS,
@@ -17,7 +24,7 @@ import {
   POH_CORRECTIONS,
   c182tPohBase as c182tPoh,
 } from '../src/data/poh/c182t.ts';
-import type { CruiseRow, CruiseTable, FieldWeightBlock } from '../src/data/poh/types.ts';
+import type { ClimbRow, CgEnvelopePoint, CruiseRow, CruiseTable, FieldWeightBlock } from '../src/data/poh/types.ts';
 
 const problems: string[] = [];
 let checks = 0;
@@ -129,6 +136,12 @@ checkCruiseTable('182T', c182tCruise, {
   gph: [8, 16],
 });
 
+checkCruiseTable('172S', c172sCruise, {
+  percentPower: [35, 90],
+  ktas: [85, 130],
+  gph: [5, 12],
+});
+
 // --- Takeoff and landing ----------------------------------------------------
 // Distances grow with altitude, with temperature, and with weight.
 
@@ -186,111 +199,171 @@ function checkFieldTable(label: string, blocks: readonly FieldWeightBlock[]) {
   }
 }
 
-checkFieldTable('takeoff', c182tPoh.takeoff);
-checkFieldTable('landing', c182tPoh.landing);
+checkFieldTable('182T takeoff', c182tPoh.takeoff);
+checkFieldTable('182T landing', c182tPoh.landing);
+checkFieldTable('172S takeoff', c172sPoh.takeoff);
+checkFieldTable('172S landing', c172sPoh.landing);
 
 // --- Climb ------------------------------------------------------------------
-for (const [label, table] of [
-  ['max rate', c182tPoh.climbMaxRate],
-  ['normal', c182tPoh.climbNormal],
-] as const) {
+function checkClimbTable(label: string, table: readonly ClimbRow[]) {
   for (let i = 1; i < table.length; i++) {
     const prev = table[i - 1];
     const row = table[i];
-    const where = `climb (${label}) ${prev.pressureAltitudeFt}->${row.pressureAltitudeFt} ft`;
+    const where = `${label} ${prev.pressureAltitudeFt}->${row.pressureAltitudeFt} ft`;
     check(row.rateOfClimbFpm <= prev.rateOfClimbFpm, `${where}: rate of climb increased with altitude`);
     check(row.timeMin >= prev.timeMin, `${where}: time to climb decreased`);
     check(row.fuelGal >= prev.fuelGal, `${where}: fuel to climb decreased`);
     check(row.distanceNm >= prev.distanceNm, `${where}: distance to climb decreased`);
+
+    // Where the sheet prints its standard temperature, it must be the ISA
+    // value the book itself uses: 15°C at sea level falling 2°C per 1000 ft.
+    if (row.standardTempC !== undefined) {
+      const expected = 15 - (row.pressureAltitudeFt / 1000) * 2;
+      check(
+        row.standardTempC === expected,
+        `${where}: printed standard temperature ${row.standardTempC}°C is not the ISA ${expected}°C`
+      );
+    }
   }
 }
+
+checkClimbTable('182T climb (max rate)', c182tPoh.climbMaxRate);
+checkClimbTable('182T climb (normal)', c182tPoh.climbNormal);
+checkClimbTable('172S climb (max rate)', c172sPoh.climbMaxRate);
 
 // --- Weights and CG ---------------------------------------------------------
-check(
-  c182tPoh.maxRampWeightLbs >= c182tPoh.maxTakeoffWeightLbs,
-  'ramp weight is below takeoff weight'
-);
-check(
-  c182tPoh.maxTakeoffWeightLbs >= c182tPoh.maxLandingWeightLbs,
-  'takeoff weight is below landing weight'
-);
-check(
-  c182tPoh.standardEmptyWeightLbs + c182tPoh.maxUsefulLoadLbs === c182tPoh.maxRampWeightLbs,
-  `empty (${c182tPoh.standardEmptyWeightLbs}) + useful load (${c182tPoh.maxUsefulLoadLbs}) != ramp weight (${c182tPoh.maxRampWeightLbs})`
-);
-
-for (let i = 0; i < c182tPoh.cgEnvelope.length; i++) {
-  const point = c182tPoh.cgEnvelope[i];
-  check(
-    point.forwardArmIn < point.aftArmIn,
-    `CG envelope at ${point.weightLbs} lb: forward limit is not ahead of aft limit`
-  );
-  if (i > 0) {
-    const prev = c182tPoh.cgEnvelope[i - 1];
-    check(point.weightLbs > prev.weightLbs, 'CG envelope points are not sorted by weight');
-    check(
-      point.forwardArmIn >= prev.forwardArmIn,
-      `CG envelope: forward limit moved forward as weight increased (${prev.forwardArmIn} -> ${point.forwardArmIn})`
-    );
+function checkWeightsAndCg(
+  label: string,
+  poh: {
+    maxRampWeightLbs: number;
+    maxTakeoffWeightLbs: number;
+    maxLandingWeightLbs: number;
+    standardEmptyWeightLbs: number;
+    maxUsefulLoadLbs: number;
+    cgEnvelope: readonly CgEnvelopePoint[];
   }
+) {
+  check(poh.maxRampWeightLbs >= poh.maxTakeoffWeightLbs, `${label}: ramp weight is below takeoff weight`);
+  check(
+    poh.maxTakeoffWeightLbs >= poh.maxLandingWeightLbs,
+    `${label}: takeoff weight is below landing weight`
+  );
+  check(
+    poh.standardEmptyWeightLbs + poh.maxUsefulLoadLbs === poh.maxRampWeightLbs,
+    `${label}: empty (${poh.standardEmptyWeightLbs}) + useful load (${poh.maxUsefulLoadLbs}) != ramp weight (${poh.maxRampWeightLbs})`
+  );
+
+  for (let i = 0; i < poh.cgEnvelope.length; i++) {
+    const point = poh.cgEnvelope[i];
+    check(
+      point.forwardArmIn < point.aftArmIn,
+      `${label} CG envelope at ${point.weightLbs} lb: forward limit is not ahead of aft limit`
+    );
+    if (i > 0) {
+      const prev = poh.cgEnvelope[i - 1];
+      check(point.weightLbs > prev.weightLbs, `${label} CG envelope points are not sorted by weight`);
+      check(
+        point.forwardArmIn >= prev.forwardArmIn,
+        `${label} CG envelope: forward limit moved forward as weight increased (${prev.forwardArmIn} -> ${point.forwardArmIn})`
+      );
+    }
+  }
+
+  // The envelope must cover the aircraft's own maximum takeoff weight, or the
+  // heaviest legal loading would fall off the end of the chart.
+  const heaviest = poh.cgEnvelope[poh.cgEnvelope.length - 1];
+  check(
+    heaviest.weightLbs >= poh.maxTakeoffWeightLbs,
+    `${label} CG envelope stops at ${heaviest.weightLbs} lb, below the ${poh.maxTakeoffWeightLbs} lb takeoff weight`
+  );
 }
+
+checkWeightsAndCg('182T', c182tPoh);
+checkWeightsAndCg('172S', c172sPoh);
 
 // --- Loading stations -------------------------------------------------------
 // Arms must march aft down the cabin, each baggage arm must sit inside its own
 // station range, and usable fuel must fall between the front and rear seats.
 
-for (const [layout, stations] of Object.entries(C182T_STATIONS)) {
-  for (let i = 1; i < stations.length; i++) {
+interface Station {
+  id: string;
+  armIn: number;
+  stationIn?: readonly [number, number] | readonly number[];
+  armRangeIn?: readonly [number, number] | readonly number[];
+}
+
+function checkStations(
+  label: string,
+  layouts: Record<string, readonly Station[]>,
+  usableFuelArmIn: number
+) {
+  for (const [layout, stations] of Object.entries(layouts)) {
+    for (let i = 1; i < stations.length; i++) {
+      check(
+        stations[i].armIn > stations[i - 1].armIn,
+        `${label} ${layout}: arm did not increase from ${stations[i - 1].id} (${stations[i - 1].armIn}) to ${stations[i].id} (${stations[i].armIn})`
+      );
+    }
+
+    for (const station of stations) {
+      const range = 'stationIn' in station ? station.stationIn : undefined;
+      if (range) {
+        check(
+          station.armIn >= range[0] && station.armIn <= range[1],
+          `${label} ${layout}/${station.id}: arm ${station.armIn} is outside its station range ${range[0]}-${range[1]}`
+        );
+      }
+      const occupantRange = 'armRangeIn' in station ? station.armRangeIn : undefined;
+      if (occupantRange) {
+        check(
+          station.armIn >= occupantRange[0] && station.armIn <= occupantRange[1],
+          `${label} ${layout}/${station.id}: average arm ${station.armIn} is outside the seat travel ${occupantRange[0]}-${occupantRange[1]}`
+        );
+      }
+    }
+  }
+
+  const [front, rear] = Object.values(layouts)[0];
+  check(
+    usableFuelArmIn > front.armIn && usableFuelArmIn < rear.armIn,
+    `${label}: usable fuel arm ${usableFuelArmIn} is not between the front (${front.armIn}) and rear (${rear.armIn}) seats`
+  );
+}
+
+checkStations('182T', C182T_STATIONS, C182T_USABLE_FUEL_ARM_IN);
+checkStations('172S', C172S_STATIONS, C172S_USABLE_FUEL_ARM_IN);
+
+// --- Baggage ----------------------------------------------------------------
+function checkBaggage(
+  label: string,
+  limits: {
+    areas: readonly { id: string; stationFrom: number; stationTo: number; maxWeightLbs: number }[];
+    combined: readonly { areaIds: readonly string[]; maxWeightLbs: number }[];
+  }
+) {
+  // A combined baggage limit can never exceed the sum of its parts.
+  for (const combo of limits.combined) {
+    const individualSum = combo.areaIds.reduce((sum, id) => {
+      const area = limits.areas.find((a) => a.id === id);
+      return sum + (area?.maxWeightLbs ?? 0);
+    }, 0);
     check(
-      stations[i].armIn > stations[i - 1].armIn,
-      `${layout}: arm did not increase from ${stations[i - 1].id} (${stations[i - 1].armIn}) to ${stations[i].id} (${stations[i].armIn})`
+      combo.maxWeightLbs <= individualSum,
+      `${label}: combined baggage limit for ${combo.areaIds.join('+')} (${combo.maxWeightLbs}) exceeds the sum of the individual limits (${individualSum})`
     );
   }
 
-  for (const station of stations) {
-    const range = 'stationIn' in station ? station.stationIn : undefined;
-    if (range) {
-      check(
-        station.armIn >= range[0] && station.armIn <= range[1],
-        `${layout}/${station.id}: arm ${station.armIn} is outside its station range ${range[0]}-${range[1]}`
-      );
-    }
-    const occupantRange = 'armRangeIn' in station ? station.armRangeIn : undefined;
-    if (occupantRange) {
-      check(
-        station.armIn >= occupantRange[0] && station.armIn <= occupantRange[1],
-        `${layout}/${station.id}: average arm ${station.armIn} is outside the seat travel ${occupantRange[0]}-${occupantRange[1]}`
-      );
-    }
+  // Baggage areas must tile the cabin without gaps or overlaps.
+  for (let i = 1; i < limits.areas.length; i++) {
+    check(
+      limits.areas[i].stationFrom === limits.areas[i - 1].stationTo,
+      `${label}: baggage areas ${limits.areas[i - 1].id} and ${limits.areas[i].id} do not meet`
+    );
   }
 }
 
-const front = C182T_STATIONS.standardSeating[0];
-const rear = C182T_STATIONS.standardSeating[1];
-check(
-  C182T_USABLE_FUEL_ARM_IN > front.armIn && C182T_USABLE_FUEL_ARM_IN < rear.armIn,
-  `usable fuel arm ${C182T_USABLE_FUEL_ARM_IN} is not between the front (${front.armIn}) and rear (${rear.armIn}) seats`
-);
-
-// A combined baggage limit can never exceed the sum of its parts.
-for (const combo of C182T_BAGGAGE_LIMITS.combined) {
-  const individualSum = combo.areaIds.reduce((sum, id) => {
-    const area = C182T_BAGGAGE_LIMITS.areas.find((a) => a.id === id);
-    return sum + (area?.maxWeightLbs ?? 0);
-  }, 0);
-  check(
-    combo.maxWeightLbs <= individualSum,
-    `combined baggage limit for ${combo.areaIds.join('+')} (${combo.maxWeightLbs}) exceeds the sum of the individual limits (${individualSum})`
-  );
-}
-
-// Baggage areas must tile the cabin without gaps or overlaps.
-for (let i = 1; i < C182T_BAGGAGE_LIMITS.areas.length; i++) {
-  check(
-    C182T_BAGGAGE_LIMITS.areas[i].stationFrom === C182T_BAGGAGE_LIMITS.areas[i - 1].stationTo,
-    `baggage areas ${C182T_BAGGAGE_LIMITS.areas[i - 1].id} and ${C182T_BAGGAGE_LIMITS.areas[i].id} do not meet`
-  );
-}
+checkBaggage('182T', C182T_BAGGAGE_LIMITS);
+checkBaggage('172S', C172S_BAGGAGE_LIMITS);
 
 // --- Declared corrections ---------------------------------------------------
 // Each entry in POH_CORRECTIONS must actually be present in the data, and must
@@ -315,8 +388,18 @@ for (const correction of POH_CORRECTIONS) {
 }
 
 // --- Report -----------------------------------------------------------------
-const cruiseCells = c182tCruise.blocks.reduce(
-  (n, b) => n + b.rows.reduce((m, r) => m + [r[2], r[3], r[4]].filter(Boolean).length, 0),
+const cruiseCells = [c182tCruise, c172sCruise].reduce(
+  (total, table) =>
+    total +
+    table.blocks.reduce(
+      (n, b) =>
+        n +
+        b.rows.reduce(
+          (m, r) => m + (r.length === 5 ? [r[2], r[3], r[4]] : [r[1], r[2], r[3]]).filter(Boolean).length,
+          0
+        ),
+      0
+    ),
   0
 );
 

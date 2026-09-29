@@ -98,6 +98,12 @@ export interface FieldWeightBlock {
 
 export interface ClimbRow {
   pressureAltitudeFt: number;
+  /**
+   * The standard temperature the sheet is computed at. The 172S prints this
+   * as a column; the 182T states "Standard Temperature" in the conditions and
+   * leaves it out, so it is optional.
+   */
+  standardTempC?: number;
   climbSpeedKias: number;
   rateOfClimbFpm: number;
   timeMin: number;

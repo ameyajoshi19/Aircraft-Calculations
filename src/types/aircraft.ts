@@ -2,9 +2,11 @@
  * Data model for an aircraft the app can compute with.
  *
  * Performance tables use the same shapes the POH itself uses (see
- * `data/poh/types.ts`), so real transcriptions and placeholder stand-ins
- * flow through one code path. `dataSource: 'placeholder'` marks an aircraft
- * whose numbers are demo values, so every screen can warn on it.
+ * `data/poh/types.ts`). `dataSource: 'placeholder'` marks an aircraft whose
+ * numbers are not from a book, so every screen can warn on it. Every aircraft
+ * in the app is currently on real POH data; the flag stays because a new
+ * aircraft may be added before its book is transcribed, and the screens must
+ * keep saying so when it is.
  */
 import type { CruiseTable, FieldWeightBlock } from '../data/poh/types.ts';
 

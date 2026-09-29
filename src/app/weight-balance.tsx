@@ -1,16 +1,22 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 import { Notice } from '@/components/ui/Notice';
 import { DataRow, Rule, Stat, StatRow } from '@/components/ui/Readout';
 import { NumberField } from '@/components/ui/NumberField';
 import { Screen, Section } from '@/components/ui/Screen';
 import { useAircraft } from '@/context/aircraft-context';
+import { useProfileState } from '@/hooks/use-profile-state';
 import { computeWeightAndBalance } from '@/lib/performance';
 
 export default function WeightBalanceScreen() {
   const { selectedProfile: profile } = useAircraft();
-  const [stationWeights, setStationWeights] = useState<Record<string, number>>({});
-  const [fuelGal, setFuelGal] = useState(profile.usableFuelGal);
+  // Both reset when the aircraft changes: the stations differ between types,
+  // and full tanks on one aeroplane are well over full on another.
+  const [stationWeights, setStationWeights] = useProfileState(
+    profile,
+    () => ({}) as Record<string, number>
+  );
+  const [fuelGal, setFuelGal] = useProfileState(profile, (p) => p.usableFuelGal);
 
   const result = useMemo(
     () => computeWeightAndBalance(profile, stationWeights, fuelGal),

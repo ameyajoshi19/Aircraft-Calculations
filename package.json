@@ -43,8 +43,9 @@
     "lint": "expo lint",
     "check:poh": "node --experimental-strip-types scripts/check-poh.ts",
     "check:cruise": "node --experimental-strip-types scripts/check-cruise.ts",
-    "verify:182t": "node --experimental-strip-types scripts/verify-182t-source.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
+    "verify:182t": "node --experimental-strip-types scripts/verify-poh-source.ts 182t",
+    "verify:172s": "node --experimental-strip-types scripts/verify-poh-source.ts 172s"
   },
   "private": true
 }

@@ -8,6 +8,7 @@ import { Screen, Section } from '@/components/ui/Screen';
 import { Segment } from '@/components/ui/Segment';
 import { SliderField } from '@/components/ui/SliderField';
 import { useAircraft } from '@/context/aircraft-context';
+import { useProfileState } from '@/hooks/use-profile-state';
 import { solveCruise } from '@/lib/cruise';
 import { computeFuelPlan, isaTemperatureC } from '@/lib/performance';
 
@@ -22,10 +23,11 @@ export default function FuelScreen() {
   const { selectedProfile: profile } = useAircraft();
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
-  const [targetPercentPower, setTargetPercentPower] = useState(
-    profile.targetPowerPresets[0].percentPower
+  const [targetPercentPower, setTargetPercentPower] = useProfileState(
+    profile,
+    (p) => p.targetPowerPresets[0].percentPower
   );
-  const [rpmChoice, setRpmChoice] = useState<number | typeof AUTO>(AUTO);
+  const [rpmChoice, setRpmChoice] = useProfileState<number | typeof AUTO>(profile, () => AUTO);
   const [reserveMinutes, setReserveMinutes] = useState(45);
   const [tripDistanceNm, setTripDistanceNm] = useState(0);
 

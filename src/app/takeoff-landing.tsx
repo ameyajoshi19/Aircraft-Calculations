@@ -6,6 +6,7 @@ import { Rule, Stat, StatRow } from '@/components/ui/Readout';
 import { Screen, Section } from '@/components/ui/Screen';
 import { SliderField } from '@/components/ui/SliderField';
 import { useAircraft } from '@/context/aircraft-context';
+import { useProfileState } from '@/hooks/use-profile-state';
 import { isaTemperatureC, lookupFieldPerformance } from '@/lib/performance';
 
 export default function TakeoffLandingScreen() {
@@ -13,7 +14,7 @@ export default function TakeoffLandingScreen() {
 
   const [altitudeFt, setAltitudeFt] = useState(0);
   const [oatC, setOatC] = useState(15);
-  const [weightLbs, setWeightLbs] = useState(profile.maxGrossWeightLbs);
+  const [weightLbs, setWeightLbs] = useProfileState(profile, (p) => p.maxGrossWeightLbs);
   const [windKts, setWindKts] = useState(0);
 
   const isaDeviation = oatC - isaTemperatureC(altitudeFt);

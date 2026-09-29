@@ -9,6 +9,7 @@ import { Segment } from '@/components/ui/Segment';
 import { SliderField } from '@/components/ui/SliderField';
 import { Text } from '@/components/ui/Text';
 import { useAircraft } from '@/context/aircraft-context';
+import { useProfileState } from '@/hooks/use-profile-state';
 import { useTheme } from '@/design/theme';
 import { space } from '@/design/tokens';
 import { solveCruise } from '@/lib/cruise';
@@ -31,10 +32,13 @@ export default function CruiseScreen() {
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
   const [isaDeviationC, setIsaDeviationC] = useState(0);
-  const [targetPercentPower, setTargetPercentPower] = useState(
-    profile.targetPowerPresets[0].percentPower
+  // Both are aircraft-specific: the presets differ, and an RPM pinned on one
+  // type may not exist in another's tables at all.
+  const [targetPercentPower, setTargetPercentPower] = useProfileState(
+    profile,
+    (p) => p.targetPowerPresets[0].percentPower
   );
-  const [rpmChoice, setRpmChoice] = useState<number | typeof AUTO>(AUTO);
+  const [rpmChoice, setRpmChoice] = useProfileState<number | typeof AUTO>(profile, () => AUTO);
 
   const altitude = Math.min(altitudeFt, profile.serviceCeilingFt);
   const oatC = isaTemperatureC(altitude) + isaDeviationC;

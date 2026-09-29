@@ -1,15 +1,21 @@
 /**
  * The aircraft the app can compute for.
  *
- * The 182T runs on the transcribed POH (document 182TPHBUS-00). The 172S is
- * still on synthetic stand-in data and is flagged as such everywhere it
- * appears, until its book is transcribed too.
+ * Both aircraft now run on their own POH: the 182T on 182TPHBUS-00 and the
+ * 172S on 172SPHBUS-00.
  *
  * Imports here are relative and carry their .ts extension, like the POH data
  * files, so `scripts/check-cruise.ts` can load this module under plain Node
  * and check the profiles against their own books.
  */
-import { generatePlaceholderCruise, generatePlaceholderField } from './placeholder-generators.ts';
+import {
+  C172S_BAGGAGE_LIMITS,
+  C172S_STATIONS,
+  C172S_USABLE_FUEL_ARM_IN,
+  C172S_USABLE_FUEL_GAL,
+  c172sPohBase,
+} from './poh/c172s.ts';
+import { c172sCruise } from './poh/c172s-cruise.ts';
 import {
   C182T_BAGGAGE_LIMITS,
   C182T_STATIONS,
@@ -31,8 +37,24 @@ const C182T_TARGET_POWER_PRESETS = [
   { percentPower: 75, rpm: 2400, label: 'Performance' },
 ];
 
-/** Labels the cruise RPM dropdown shows beside each setting. */
-const RPM_PRESETS = [
+/**
+ * RPMs the cruise dropdown offers for the 172S, covering the span its sheets
+ * publish (2100 low down, up to 2700 at altitude). Pinning one here overrides
+ * the solver's own choice.
+ */
+const RPM_PRESETS_172S = [
+  { rpm: 2100 },
+  { rpm: 2200 },
+  { rpm: 2300, label: 'Economy' },
+  { rpm: 2400 },
+  { rpm: 2500, label: 'Balanced' },
+  { rpm: 2600 },
+  { rpm: 2650, label: 'Performance' },
+  { rpm: 2700 },
+];
+
+/** Labels the cruise RPM dropdown shows beside each 182T setting. */
+const RPM_PRESETS_182T = [
   { rpm: 2000, label: 'Economy' },
   { rpm: 2100 },
   { rpm: 2200, label: 'Balanced' },
@@ -78,7 +100,7 @@ const cessna182t: AircraftProfile = {
   })),
 
   cruise: c182tCruise,
-  rpmPresets: RPM_PRESETS,
+  rpmPresets: RPM_PRESETS_182T,
   targetPowerPresets: C182T_TARGET_POWER_PRESETS,
   takeoff: c182tPohBase.takeoff,
   landing: c182tPohBase.landing,
@@ -91,84 +113,75 @@ const cessna182t: AircraftProfile = {
     "book's standard figure — replace it with this airframe's weighing record before flight planning.",
 };
 
+/**
+ * Three cruise modes for the 172S. Section 4 puts normal cruise between 55%
+ * and 75% of rated MCP, and 75% is also the table's own ceiling.
+ *
+ * The RPMs here are never used: on a fixed-pitch aircraft there is one control,
+ * so the solver works the RPM out from the target power rather than taking it
+ * from a preset. They are recorded as the RPM each mode lands near at a typical
+ * cruise altitude, so the shape stays shared with the 182T.
+ */
+const C172S_TARGET_POWER_PRESETS = [
+  { percentPower: 55, rpm: 2300, label: 'Economy' },
+  { percentPower: 65, rpm: 2500, label: 'Balanced' },
+  { percentPower: 75, rpm: 2650, label: 'Performance' },
+];
+
 const cessna172sp: AircraftProfile = {
   id: 'c172sp-g1000',
   tailNumber: 'N234FF',
   shortName: 'C172SP',
-  model: 'Cessna 172SP G1000 (Skyhawk)',
+  model: 'Cessna 172S NAV III / GFC 700 (Skyhawk)',
 
+  // Section 1 page 1-3: Textron Lycoming IO-360-L2A, 180 BHP at 2700 RPM,
+  // fixed-pitch propeller.
   engineHp: 180,
-  maxSpeedKts: 125,
+  maxSpeedKts: 126,
   serviceCeilingFt: 14000,
 
-  emptyWeightLbs: 1680,
-  emptyWeightArm: 39.0,
-  maxGrossWeightLbs: 2550,
-  maxLandingWeightLbs: 2550,
-  usableFuelGal: 53,
+  // Section 1 page 1-8. This is the book's STANDARD empty weight; N234FF's
+  // actual weighing record will differ and should replace it.
+  emptyWeightLbs: c172sPohBase.standardEmptyWeightLbs,
+  // Arm implied by the sample loading problem on page 6-9 (1642 lb at a moment
+  // of 62.6 thousand lb-in). Replace it along with the empty weight above.
+  emptyWeightArm: 38.1,
+  maxGrossWeightLbs: c172sPohBase.maxTakeoffWeightLbs,
+  maxLandingWeightLbs: c172sPohBase.maxLandingWeightLbs,
+  usableFuelGal: C172S_USABLE_FUEL_GAL.standard,
   fuelLbsPerGal: 6,
-  fuelArm: 46.5,
+  fuelArm: C172S_USABLE_FUEL_ARM_IN,
 
-  stations: [
-    { id: 'front-seats', label: 'Pilot & Front Passenger', arm: 37.0 },
-    { id: 'rear-seats', label: 'Rear Passengers', arm: 73.0 },
-    { id: 'baggage-a', label: 'Baggage Area 1', arm: 95.0, maxWeight: 120 },
-    { id: 'baggage-b', label: 'Baggage Area 2', arm: 123.0, maxWeight: 50 },
-  ],
-  envelope: [
-    { weight: 1680, forwardArm: 35.0, aftArm: 40.5 },
-    { weight: 2000, forwardArm: 35.6, aftArm: 40.8 },
-    { weight: 2550, forwardArm: 37.5, aftArm: 41.0 },
-  ],
-  combinedWeightLimits: [],
+  stations: C172S_STATIONS.standardSeating.map((s) => ({
+    id: s.id,
+    label: s.label,
+    arm: s.armIn,
+    maxWeight: 'maxWeightLbs' in s ? s.maxWeightLbs : undefined,
+  })),
+  envelope: c172sPohBase.cgEnvelope.map((p) => ({
+    weight: p.weightLbs,
+    forwardArm: p.forwardArmIn,
+    aftArm: p.aftArmIn,
+  })),
+  combinedWeightLimits: C172S_BAGGAGE_LIMITS.combined.map((c) => ({
+    stationIds: [...c.areaIds],
+    maxWeightLbs: c.maxWeightLbs,
+    label: c.areaIds.map((id) => id.replace('baggage-', '').toUpperCase()).join(' + '),
+  })),
 
-  // Fixed-pitch propeller: no manifold pressure, so the placeholder table has
-  // no MP column either. Max cruise is 75% MCP, per the note on Figure 5-8.
-  cruise: generatePlaceholderCruise({
-    altitudesFt: [2000, 4000, 6000, 8000, 10000, 12000],
-    rpms: [2100, 2200, 2300, 2400, 2500, 2600],
-    basePercentPower: 45,
-    baseKtas: 90,
-    baseGph: 6.0,
-    maxCruisePercentPower: 75,
-    percentPowerLabel: 'MCP',
-  }),
-  rpmPresets: [
-    { rpm: 2100, label: 'Economy' },
-    { rpm: 2200 },
-    { rpm: 2300, label: 'Balanced' },
-    { rpm: 2400 },
-    { rpm: 2500 },
-    { rpm: 2600, label: 'Performance' },
-  ],
-  // On a fixed-pitch aircraft the RPM is the answer, not a second choice, so
-  // these RPMs are never used — they are here only to satisfy the shared
-  // shape, and the solver works the RPM out from the target power.
-  targetPowerPresets: [
-    { percentPower: 55, rpm: 2200, label: 'Economy' },
-    { percentPower: 65, rpm: 2400, label: 'Balanced' },
-    { percentPower: 75, rpm: 2600, label: 'Performance' },
-  ],
-  takeoff: generatePlaceholderField({
-    weightsLbs: [2200, 2550],
-    altitudesFt: [0, 2000, 4000, 6000, 8000],
-    oatsC: [0, 10, 20, 30, 40],
-    baseGroundRollFt: 860,
-    baseOver50ftFt: 1500,
-  }),
-  landing: generatePlaceholderField({
-    weightsLbs: [2550],
-    altitudesFt: [0, 2000, 4000, 6000, 8000],
-    oatsC: [0, 10, 20, 30, 40],
-    baseGroundRollFt: 600,
-    baseOver50ftFt: 1350,
-  }),
+  cruise: c172sCruise,
+  rpmPresets: RPM_PRESETS_172S,
+  targetPowerPresets: C172S_TARGET_POWER_PRESETS,
+  takeoff: c172sPohBase.takeoff,
+  landing: c172sPohBase.landing,
 
-  performanceDataSource: 'placeholder',
-  weightBalanceDataSource: 'placeholder',
+  performanceDataSource: 'poh',
+  weightBalanceDataSource: 'poh',
+  pohDocumentNumber: c172sPohBase.documentNumber,
   sourceNote:
-    'Engine, fuel and speed figures come from the N234FF rental sheet. All performance ' +
-    'tables and W&B arms are synthetic placeholders — transcribe the 172S POH to replace them.',
+    'Performance and W&B limits from POH 172SPHBUS-00, NORMAL category only — the ' +
+    "book's utility-category limits are not modelled. Empty weight is the book's " +
+    'standard figure; replace it with this airframe\'s weighing record before flight planning.',
 };
 
 export const aircraftProfiles: AircraftProfile[] = [cessna182t, cessna172sp];
