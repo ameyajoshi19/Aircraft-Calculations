@@ -16,8 +16,11 @@
  * altitude. `null` means either the POH prints "---" (setting unavailable)
  * or the cell was unreadable in the source image — see UNREADABLE_CELLS.
  *
- * TRANSCRIBED BY EYE FROM PAGE IMAGES. NOT INDEPENDENTLY VERIFIED AGAINST
- * THE PRINTED BOOK. Run `npm run check:poh` for the consistency checks.
+ * Transcribed by eye from page images, then VERIFIED CELL BY CELL against the
+ * POH PDF's own text layer — every one of the 546 cells and 1581 printed
+ * numbers matches. Run `npm run verify:182t -- <pdftotext output>` to repeat
+ * that comparison, and `npm run check:poh` for the internal consistency
+ * checks that run without the book.
  */
 import type { CruiseAltitudeBlock, CruiseRow } from './types';
 

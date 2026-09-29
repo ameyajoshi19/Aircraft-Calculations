@@ -1,0 +1,16 @@
+{
+  // The check and verify scripts run under plain Node (`--experimental-strip-types`),
+  // not the React Native bundler, so they need Node's own types and module
+  // resolution rather than the app's. Kept separate so neither environment
+  // has to pretend to be the other.
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "customConditions": [],
+    "lib": ["ESNext"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": ["**/*.ts", "../src/**/*.ts"]
+}

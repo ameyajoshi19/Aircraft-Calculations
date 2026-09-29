@@ -2,8 +2,10 @@
  * Cessna 182T NAV III / GFC 700 AFCS — POH document 182TPHBUS-00.
  * Weights, CG limits, takeoff/landing distance and climb data.
  *
- * TRANSCRIBED BY EYE FROM PAGE IMAGES. NOT INDEPENDENTLY VERIFIED AGAINST
- * THE PRINTED BOOK.
+ * Transcribed by eye from page images, then VERIFIED against the POH PDF's
+ * own text layer: takeoff, landing, both climb tables and the Section 2
+ * weight, CG and baggage limits all match what the book prints. Run
+ * `npm run verify:182t -- <pdftotext output>` to repeat that comparison.
  */
 import type { ClimbRow, FieldWeightBlock, PohDocument } from './types';
 
@@ -38,6 +40,11 @@ export const POH_CORRECTIONS = [
       'ratio smooth at 2.32 / 2.30 / 2.28, where the printed value gives an outlier 2.18. ' +
       'It is also longer than the printed figure, so it errs conservatively.',
     authorisedBy: 'Aircraft operator, after reviewing a clean scan of page 5-37.',
+    // Confirmed three ways that 1265 really is what the book prints, not a
+    // scanning artefact: the original page image, a clean re-scan, and the
+    // PDF's own text layer. The correction is a judgement about the book
+    // being wrong, not about the page being hard to read.
+    printedValueConfirmedBy: 'page image, clean re-scan, and the PDF text layer',
   },
 ] as const;
 

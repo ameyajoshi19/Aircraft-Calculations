@@ -2,8 +2,9 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    // scripts/check-poh.ts runs under plain Node, which requires explicit
-    // file extensions on relative imports.
+    // The scripts/ checks run under plain Node, which requires explicit file
+    // extensions on relative imports. Set here so scripts/tsconfig.json,
+    // which extends this file, inherits it.
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "paths": {
@@ -15,6 +16,10 @@
       ]
     }
   },
+  // scripts/ typechecks separately against Node's types — see scripts/tsconfig.json.
+  "exclude": [
+    "scripts"
+  ],
   "include": [
     "**/*.ts",
     "**/*.tsx",
