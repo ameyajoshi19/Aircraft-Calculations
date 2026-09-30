@@ -1,8 +1,14 @@
 /**
  * The aircraft the app can compute for.
  *
- * Both aircraft now run on their own POH: the 182T on 182TPHBUS-00 and the
- * 172S on 172SPHBUS-00.
+ * Each aircraft runs on its own POH: the 182T on 182TPHBUS-00, the 172S on
+ * 172SPHBUS-00 and the 162 on 162PHUS-04.
+ *
+ * These describe the MODEL, not any particular aeroplane. Nothing here is
+ * specific to one airframe — no tail number, and the empty weights are the
+ * books' standard figures. The values that really do vary between two
+ * aircraft of the same type are entered by the owner and stored separately;
+ * see AirframeOverrides.
  *
  * Imports here are relative and carry their .ts extension, like the POH data
  * files, so `scripts/check-cruise.ts` can load this module under plain Node
@@ -75,7 +81,6 @@ const RPM_PRESETS_182T = [
 
 const cessna182t: AircraftProfile = {
   id: 'c182t-g1000',
-  tailNumber: 'N32LP',
   shortName: 'C182T',
   model: 'Cessna 182T G1000 (Skylane)',
 
@@ -83,8 +88,8 @@ const cessna182t: AircraftProfile = {
   maxSpeedKts: 145,
   serviceCeilingFt: 18100,
 
-  // Section 1 page 1-8. This is the *standard* empty weight from the book;
-  // N32LP's actual weighing record will differ and should replace it.
+  // Section 1 page 1-8. The book's STANDARD empty weight — a stand-in until
+  // the owner enters this airframe's weighing record on the Aircraft screen.
   emptyWeightLbs: c182tPohBase.standardEmptyWeightLbs,
   emptyWeightArm: 39.0,
   maxGrossWeightLbs: c182tPohBase.maxTakeoffWeightLbs,
@@ -122,7 +127,7 @@ const cessna182t: AircraftProfile = {
   pohDocumentNumber: c182tPohBase.documentNumber,
   sourceNote:
     'Performance and W&B limits transcribed from POH 182TPHBUS-00. Empty weight is the ' +
-    "book's standard figure — replace it with this airframe's weighing record before flight planning.",
+    "book's standard figure — enter this airframe's weighing record before flight planning.",
 };
 
 /**
@@ -142,7 +147,6 @@ const C172S_TARGET_POWER_PRESETS = [
 
 const cessna172sp: AircraftProfile = {
   id: 'c172sp-g1000',
-  tailNumber: 'N234FF',
   shortName: 'C172SP',
   model: 'Cessna 172S NAV III / GFC 700 (Skyhawk)',
 
@@ -152,8 +156,8 @@ const cessna172sp: AircraftProfile = {
   maxSpeedKts: 126,
   serviceCeilingFt: 14000,
 
-  // Section 1 page 1-8. This is the book's STANDARD empty weight; N234FF's
-  // actual weighing record will differ and should replace it.
+  // Section 1 page 1-8. The book's STANDARD empty weight — a stand-in until
+  // the owner enters this airframe's weighing record on the Aircraft screen.
   emptyWeightLbs: c172sPohBase.standardEmptyWeightLbs,
   // Arm implied by the sample loading problem on page 6-9 (1642 lb at a moment
   // of 62.6 thousand lb-in). Replace it along with the empty weight above.
@@ -194,7 +198,7 @@ const cessna172sp: AircraftProfile = {
   sourceNote:
     'Performance and W&B limits from POH 172SPHBUS-00, NORMAL category only — the ' +
     "book's utility-category limits are not modelled. Empty weight is the book's " +
-    'standard figure; replace it with this airframe\'s weighing record before flight planning.',
+    "standard figure; enter this airframe's weighing record before flight planning.",
 };
 
 /**
@@ -233,6 +237,8 @@ const cessna162: AircraftProfile = {
   maxSpeedKts: 118,
   serviceCeilingFt: 14625,
 
+  // Section 1 page 1-3. The book's STANDARD empty weight — a stand-in until
+  // the owner enters this airframe's weighing record on the Aircraft screen.
   emptyWeightLbs: c162PohBase.standardEmptyWeightLbs,
   // Implied by the sample loading problem on page 6-13: 834 lb at a moment of
   // 110.1 thousand lb-in gives 132.0 in. Replace it together with the empty
@@ -271,8 +277,8 @@ const cessna162: AircraftProfile = {
   sourceNote:
     'Performance and W&B limits from POH 162PHUS-04. The Section 5 tables are scanned ' +
     'images in that book, so they were read by eye rather than extracted — read twice ' +
-    "and consistency-checked. Empty weight is the book's standard figure; replace it " +
-    "with this airframe's weighing record before flight planning.",
+    "and consistency-checked. Empty weight is the book's standard figure; enter this " +
+    "airframe's weighing record before flight planning.",
 };
 
 export const aircraftProfiles: AircraftProfile[] = [cessna182t, cessna172sp, cessna162];

@@ -14,7 +14,11 @@ export default function TakeoffLandingScreen() {
 
   const [altitudeFt, setAltitudeFt] = useState(0);
   const [oatC, setOatC] = useState(15);
-  const [weightLbs, setWeightLbs] = useProfileState(profile, (p) => p.maxGrossWeightLbs);
+  const [weightLbs, setWeightLbs] = useProfileState(
+    profile,
+    (p) => p.maxGrossWeightLbs,
+    `${profile.id}:${profile.maxGrossWeightLbs}`
+  );
   const [windKts, setWindKts] = useState(0);
 
   const isaDeviation = oatC - isaTemperatureC(altitudeFt);

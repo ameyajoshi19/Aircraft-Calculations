@@ -65,8 +65,40 @@ export interface TargetPowerPreset {
   label: string;
 }
 
+/**
+ * The values that differ between two aeroplanes of the same model.
+ *
+ * Everything else in a profile is the POH's and is true of every airframe of
+ * that type. These come from a particular aircraft's weighing record and
+ * equipment list, so the app cannot know them — the owner enters them, and
+ * they are stored per profile.
+ *
+ * Each is optional. Unset means "use the book's figure", which for empty
+ * weight is the model's STANDARD empty weight — a reasonable starting point
+ * and a poor substitute for a real weighing, which is why the screens say so.
+ */
+export interface AirframeOverrides {
+  /** Registration. A label only; nothing is computed from it. */
+  tailNumber?: string;
+  /** Basic empty weight from this aircraft's weight and balance record. */
+  emptyWeightLbs?: number;
+  /** The arm that goes with it, in inches aft of datum. */
+  emptyWeightArm?: number;
+  /** Usable fuel, for an airframe with non-standard tanks. */
+  usableFuelGal?: number;
+}
+
+/** The override fields, for iterating without hard-coding the list twice. */
+export const AIRFRAME_OVERRIDE_KEYS = [
+  'tailNumber',
+  'emptyWeightLbs',
+  'emptyWeightArm',
+  'usableFuelGal',
+] as const;
+
 export interface AircraftProfile {
   id: string;
+  /** Set by the owner on the Aircraft screen; the POH has no tail number. */
   tailNumber?: string;
   /** Compact type designation shown in screen subtitles, e.g. "C182T". */
   shortName: string;

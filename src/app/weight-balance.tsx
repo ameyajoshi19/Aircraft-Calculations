@@ -16,7 +16,14 @@ export default function WeightBalanceScreen() {
     profile,
     () => ({}) as Record<string, number>
   );
-  const [fuelGal, setFuelGal] = useProfileState(profile, (p) => p.usableFuelGal);
+  // Re-seeds when the owner edits this airframe's usable fuel too, not only
+  // when the aircraft changes — otherwise a full-tanks figure from the book
+  // would sit in the field after the tanks were corrected downwards.
+  const [fuelGal, setFuelGal] = useProfileState(
+    profile,
+    (p) => p.usableFuelGal,
+    `${profile.id}:${profile.usableFuelGal}`
+  );
 
   const result = useMemo(
     () => computeWeightAndBalance(profile, stationWeights, fuelGal),
