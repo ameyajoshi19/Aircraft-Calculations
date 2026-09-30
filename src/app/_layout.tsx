@@ -14,6 +14,7 @@ import { useEffect } from 'react';
 
 import AppTabs from '@/components/app-tabs';
 import { AircraftProvider } from '@/context/aircraft-context';
+import { FlightProvider } from '@/context/flight-context';
 import { ThemeProvider, useTheme } from '@/design/theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -38,7 +39,11 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AircraftProvider>
-        <Chrome />
+        {/* Inside AircraftProvider: the flight's fuel load is seeded and
+            capped by the selected aircraft's tanks. */}
+        <FlightProvider>
+          <Chrome />
+        </FlightProvider>
       </AircraftProvider>
     </ThemeProvider>
   );

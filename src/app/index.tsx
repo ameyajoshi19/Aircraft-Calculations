@@ -9,6 +9,7 @@ import { Segment } from '@/components/ui/Segment';
 import { SliderField } from '@/components/ui/SliderField';
 import { Text } from '@/components/ui/Text';
 import { useAircraft } from '@/context/aircraft-context';
+import { useFlight } from '@/context/flight-context';
 import { useProfileState } from '@/hooks/use-profile-state';
 import { useTheme } from '@/design/theme';
 import { space } from '@/design/tokens';
@@ -23,6 +24,7 @@ const RESERVE_MINUTES = 45;
 export default function CruiseScreen() {
   const { selectedProfile: profile } = useAircraft();
   const { colors } = useTheme();
+  const { fuelOnBoardGal, isFullTanks } = useFlight();
 
   // A fixed-pitch aircraft has one control. RPM is not a second thing to pick
   // alongside the power — it is the answer, so the screen has no MP readout
@@ -84,11 +86,16 @@ export default function CruiseScreen() {
   // Profile chart. Without the reserve this reads roughly 100 nm further than
   // the book — an optimistic number is the last thing this screen should show.
   // It still excludes start, taxi and climb fuel, which the Fuel tab covers.
+  //
+  // Computed from the fuel actually on board, not the tank capacity: the two
+  // are the same only when you depart full, and the difference is all in the
+  // optimistic direction.
   const rangeNm = useMemo(() => {
     if (!solution || solution.gph <= 0) return null;
     const reserveGal = (RESERVE_MINUTES / 60) * solution.gph;
-    return Math.round(((profile.usableFuelGal - reserveGal) / solution.gph) * solution.ktas);
-  }, [solution, profile.usableFuelGal]);
+    const usable = Math.max(fuelOnBoardGal - reserveGal, 0);
+    return Math.round((usable / solution.gph) * solution.ktas);
+  }, [solution, fuelOnBoardGal]);
 
   // A pinned RPM that overshoots the target is the pilot's own choice, not a
   // shortfall, so only an undershoot is worth warning about.
@@ -161,7 +168,8 @@ export default function CruiseScreen() {
         </StatRow>
 
         <Text variant="caption" tone="faint">
-          Range assumes {RESERVE_MINUTES} min reserve and excludes start, taxi and climb fuel.
+          {`Range on ${fuelOnBoardGal} gal${isFullTanks ? ' (full tanks)' : ''}, ${RESERVE_MINUTES} min reserve, ` +
+            'excluding start, taxi and climb fuel.'}
         </Text>
 
         {solution ? (

@@ -14,7 +14,7 @@ import { aircraftProfiles } from '../src/data/aircraft-profiles.ts';
 import { c162Cruise } from '../src/data/poh/c162-cruise.ts';
 import { C162_FIELD_CORRECTIONS, c162PohBase } from '../src/data/poh/c162.ts';
 import { C172S_FIELD_CORRECTIONS, c172sPohBase } from '../src/data/poh/c172s.ts';
-import { lookupFieldPerformance } from '../src/lib/performance.ts';
+import { computeFuelPlan, lookupFieldPerformance } from '../src/lib/performance.ts';
 import type { CruiseTable, FixedPitchCruiseRow } from '../src/data/poh/types.ts';
 import { availableRpms, solveAtRpm, solveCruise } from '../src/lib/cruise.ts';
 
@@ -353,6 +353,55 @@ console.log('\nWind correction uses each aircraft\'s own rate');
     c162Wind.groundRollFt / c162Still.groundRollFt < c172Wind.groundRollFt / c172Still.groundRollFt,
     true
   );
+}
+
+// --- Endurance and range follow the fuel actually on board ------------------
+// These figures used to be computed from the aircraft's TANK CAPACITY, so they
+// were right only when departing full and optimistic every other time. That is
+// the dangerous direction for a fuel figure to err in, so it is pinned here.
+console.log('\nEndurance and range track fuel on board, not tank capacity');
+{
+  const c172s = aircraftProfiles.find((p) => p.id === 'c172sp-g1000')!;
+  const solution = solveCruise(c172s.cruise, {
+    altitudeFt: 8000,
+    oatC: oatForIsaDeviation(8000, 0),
+    targetPercentPower: 55,
+  });
+  if (!solution) throw new Error('no solution');
+
+  const full = computeFuelPlan(c172s.usableFuelGal, solution.gph, solution.ktas, 45);
+  const partial = computeFuelPlan(40, solution.gph, solution.ktas, 45);
+
+  expect('full tanks are 53 gal', c172s.usableFuelGal, 53);
+  expect('less fuel gives less range', partial.rangeNm < full.rangeNm, true);
+  expect('less fuel gives less endurance', partial.flightEnduranceHours < full.flightEnduranceHours, true);
+  near('53 gal range', full.rangeNm, 638, 2);
+  near('40 gal range', partial.rangeNm, 462, 2);
+
+  // The reserve must actually be held back, not just reported.
+  near('reserve is 45 minutes of fuel', partial.reserveGal, 0.75 * solution.gph, 0.01);
+  near(
+    'flight fuel is what is left after the reserve',
+    partial.flightFuelGal,
+    40 - partial.reserveGal,
+    0.01
+  );
+
+  // Fuel below the reserve leaves nothing to fly on, and must not go negative.
+  const belowReserve = computeFuelPlan(2, solution.gph, solution.ktas, 45);
+  expect('fuel under the reserve gives zero flight fuel', belowReserve.flightFuelGal, 0);
+  expect('and zero range, never negative', belowReserve.rangeNm, 0);
+
+  // Monotonic across the whole range, not just at the two sampled points.
+  let regressions = 0;
+  let previous = Infinity;
+  for (let gal = c172s.usableFuelGal; gal >= 0; gal -= 1) {
+    const plan = computeFuelPlan(gal, solution.gph, solution.ktas, 45);
+    if (plan.rangeNm > previous) regressions += 1;
+    previous = plan.rangeNm;
+    checks += 1;
+  }
+  expect('range never rises as fuel falls', regressions, 0);
 }
 
 console.log(`\nRan ${checks} checks.`);

@@ -5,6 +5,7 @@ import { DataRow, Rule, Stat, StatRow } from '@/components/ui/Readout';
 import { NumberField } from '@/components/ui/NumberField';
 import { Screen, Section } from '@/components/ui/Screen';
 import { useAircraft } from '@/context/aircraft-context';
+import { useFlight } from '@/context/flight-context';
 import { useProfileState } from '@/hooks/use-profile-state';
 import { computeWeightAndBalance } from '@/lib/performance';
 
@@ -16,14 +17,10 @@ export default function WeightBalanceScreen() {
     profile,
     () => ({}) as Record<string, number>
   );
-  // Re-seeds when the owner edits this airframe's usable fuel too, not only
-  // when the aircraft changes — otherwise a full-tanks figure from the book
-  // would sit in the field after the tanks were corrected downwards.
-  const [fuelGal, setFuelGal] = useProfileState(
-    profile,
-    (p) => p.usableFuelGal,
-    `${profile.id}:${profile.usableFuelGal}`
-  );
+  // Fuel on board is shared with the Cruise and Fuel screens, so the weight
+  // and CG here are always computed from the same load as the endurance and
+  // range figures there.
+  const { fuelOnBoardGal: fuelGal, setFuelOnBoardGal: setFuelGal } = useFlight();
 
   const result = useMemo(
     () => computeWeightAndBalance(profile, stationWeights, fuelGal),

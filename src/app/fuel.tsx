@@ -8,6 +8,7 @@ import { Screen, Section } from '@/components/ui/Screen';
 import { Segment } from '@/components/ui/Segment';
 import { SliderField } from '@/components/ui/SliderField';
 import { useAircraft } from '@/context/aircraft-context';
+import { useFlight } from '@/context/flight-context';
 import { useProfileState } from '@/hooks/use-profile-state';
 import { solveCruise } from '@/lib/cruise';
 import { computeFuelPlan, isaTemperatureC } from '@/lib/performance';
@@ -21,6 +22,7 @@ function hoursMinutes(hours: number): string {
 
 export default function FuelScreen() {
   const { selectedProfile: profile } = useAircraft();
+  const { fuelOnBoardGal, setFuelOnBoardGal, isFullTanks } = useFlight();
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
   const [targetPercentPower, setTargetPercentPower] = useProfileState(
@@ -76,15 +78,15 @@ export default function FuelScreen() {
   const plan = useMemo(
     () =>
       solution
-        ? computeFuelPlan(profile.usableFuelGal, solution.gph, solution.ktas, reserveMinutes)
+        ? computeFuelPlan(fuelOnBoardGal, solution.gph, solution.ktas, reserveMinutes)
         : null,
-    [solution, profile.usableFuelGal, reserveMinutes]
+    [solution, fuelOnBoardGal, reserveMinutes]
   );
 
   const tripHours = solution && solution.ktas > 0 ? tripDistanceNm / solution.ktas : 0;
   const tripFuelGal = solution ? tripHours * solution.gph : 0;
   const tripPlanned = tripDistanceNm > 0 && solution !== null;
-  const tripFits = tripPlanned && tripFuelGal + (plan?.reserveGal ?? 0) <= profile.usableFuelGal;
+  const tripFits = tripPlanned && tripFuelGal + (plan?.reserveGal ?? 0) <= fuelOnBoardGal;
 
   return (
     <Screen
@@ -112,6 +114,13 @@ export default function FuelScreen() {
           onChange={setTargetPercentPower}
         />
         <Dropdown label="RPM" value={rpmChoice} options={rpmOptions} onChange={setRpmChoice} />
+        <NumberField
+          label="Fuel on board"
+          unit="gal"
+          max={profile.usableFuelGal}
+          value={fuelOnBoardGal}
+          onChange={setFuelOnBoardGal}
+        />
         <SliderField
           label="Reserve"
           valueLabel={`${reserveMinutes} min`}
@@ -146,10 +155,15 @@ export default function FuelScreen() {
           label="Power delivered"
           value={solution ? `${solution.percentPower}% ${profile.cruise.percentPowerLabel}` : '—'}
         />
-        <DataRow label="Usable fuel" value={`${profile.usableFuelGal} gal`} />
+        <DataRow label="Fuel on board" value={`${fuelOnBoardGal} gal`} />
+        <DataRow
+          label="Tank capacity"
+          value={`${profile.usableFuelGal} gal usable`}
+          tone={isFullTanks ? undefined : 'ink'}
+        />
         <DataRow label="Reserve" value={plan ? `${plan.reserveGal.toFixed(1)} gal` : '—'} />
         <DataRow
-          label="Endurance on full fuel"
+          label="Endurance before reserve"
           value={plan ? hoursMinutes(plan.totalEnduranceHours) : '—'}
         />
       </Section>
@@ -171,8 +185,8 @@ export default function FuelScreen() {
       ) : null}
 
       <Notice tone="warning">
-        Range and endurance assume cruise for the whole flight. They exclude the fuel for start,
-        taxi, takeoff and climb — the POH allows 1.7 gal for start, taxi and takeoff alone.
+        {`Based on ${fuelOnBoardGal} gal on board${isFullTanks ? ' (full tanks)' : ''}. Range and endurance assume ` +
+          'cruise for the whole flight and exclude the fuel for start, taxi, takeoff and climb.'}
       </Notice>
     </Screen>
   );
