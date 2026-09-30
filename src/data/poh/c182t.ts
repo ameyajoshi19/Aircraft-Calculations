@@ -7,7 +7,7 @@
  * weight, CG and baggage limits all match what the book prints. Run
  * `npm run verify:182t -- <pdftotext output>` to repeat that comparison.
  */
-import type { ClimbRow, FieldWeightBlock, PohDocument } from './types';
+import type { ClimbRow, FieldCorrections, FieldWeightBlock, PohDocument } from './types';
 
 /**
  * Cells where the stored value deliberately DIFFERS from the printed POH.
@@ -223,14 +223,12 @@ export const C182T_START_TAXI_TAKEOFF_FUEL_GAL = 1.7;
  * Wind and surface corrections, from the notes on Figures 5-6 and 5-12.
  * Note the grass factor differs between takeoff (15%) and landing (45%).
  */
-export const C182T_FIELD_CORRECTIONS = {
-  headwindPercentPer9Kts: -10,
-  tailwindPercentPer2Kts: 10,
-  maxTailwindKts: 10,
+export const C182T_FIELD_CORRECTIONS: FieldCorrections = {
+  headwind: { percent: 10, perKts: 9 },
+  tailwind: { percent: 10, perKts: 2, maxKts: 10 },
   dryGrassPercentOfGroundRoll: { takeoff: 15, landing: 45 },
-  /** Landing with flaps up: add 10 KIAS to approach speed and 40% to distances. */
-  flapsUpLandingPercent: 40,
-} as const;
+  flapsUpLanding: { extraKias: 10, percent: 40 },
+};
 
 /** Section 6, Figure 6-1 (pages 6-5 / 6-6). Datum is the front face of the firewall. */
 export const C182T_DATUM = {

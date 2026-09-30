@@ -18,7 +18,15 @@ export default function TakeoffLandingScreen() {
   const [windKts, setWindKts] = useState(0);
 
   const isaDeviation = oatC - isaTemperatureC(altitudeFt);
-  const common = { pressureAltitudeFt: altitudeFt, oatC, windComponentKts: windKts };
+  // The wind correction rates come from this aircraft's own table notes; they
+  // differ between types, so they are never assumed here.
+  const common = {
+    pressureAltitudeFt: altitudeFt,
+    oatC,
+    windComponentKts: windKts,
+    corrections: profile.fieldCorrections,
+  };
+  const grass = profile.fieldCorrections.dryGrassPercentOfGroundRoll;
 
   const takeoff = lookupFieldPerformance(profile.takeoff, { ...common, weightLbs });
   // The POH tabulates landing at the maximum landing weight only, so a lighter
@@ -109,8 +117,10 @@ export default function TakeoffLandingScreen() {
       </Section>
 
       <Notice tone="warning">
-        Short field technique, paved level dry runway, zero wind before the wind correction. Dry
-        grass adds 15% of the takeoff ground roll and 45% of the landing ground roll.
+        {'Short field technique, paved level dry runway, zero wind before the wind correction. ' +
+          (grass
+            ? `Dry grass adds ${grass.takeoff}% of the takeoff ground roll and ${grass.landing}% of the landing ground roll.`
+            : `${profile.shortName} POH publishes no dry grass correction — these figures are for a paved runway only.`)}
       </Notice>
     </Screen>
   );

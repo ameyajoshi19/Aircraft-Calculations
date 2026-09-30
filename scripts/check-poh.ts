@@ -9,6 +9,13 @@
  *
  * Run: npm run check:poh
  */
+import { c162Cruise } from '../src/data/poh/c162-cruise.ts';
+import {
+  C162_BAGGAGE_LIMITS,
+  C162_STATIONS,
+  C162_USABLE_FUEL_ARM_IN,
+  c162PohBase as c162Poh,
+} from '../src/data/poh/c162.ts';
 import { c172sCruise } from '../src/data/poh/c172s-cruise.ts';
 import {
   C172S_BAGGAGE_LIMITS,
@@ -142,6 +149,13 @@ checkCruiseTable('172S', c172sCruise, {
   gph: [5, 12],
 });
 
+// A 100 hp Light Sport: everything is smaller, so its bounds are too.
+checkCruiseTable('162', c162Cruise, {
+  percentPower: [30, 90],
+  ktas: [70, 120],
+  gph: [3, 8],
+});
+
 // --- Takeoff and landing ----------------------------------------------------
 // Distances grow with altitude, with temperature, and with weight.
 
@@ -203,6 +217,8 @@ checkFieldTable('182T takeoff', c182tPoh.takeoff);
 checkFieldTable('182T landing', c182tPoh.landing);
 checkFieldTable('172S takeoff', c172sPoh.takeoff);
 checkFieldTable('172S landing', c172sPoh.landing);
+checkFieldTable('162 takeoff', c162Poh.takeoff);
+checkFieldTable('162 landing', c162Poh.landing);
 
 // --- Climb ------------------------------------------------------------------
 function checkClimbTable(label: string, table: readonly ClimbRow[]) {
@@ -230,6 +246,7 @@ function checkClimbTable(label: string, table: readonly ClimbRow[]) {
 checkClimbTable('182T climb (max rate)', c182tPoh.climbMaxRate);
 checkClimbTable('182T climb (normal)', c182tPoh.climbNormal);
 checkClimbTable('172S climb (max rate)', c172sPoh.climbMaxRate);
+checkClimbTable('162 climb (max rate)', c162Poh.climbMaxRate);
 
 // --- Weights and CG ---------------------------------------------------------
 function checkWeightsAndCg(
@@ -280,6 +297,7 @@ function checkWeightsAndCg(
 
 checkWeightsAndCg('182T', c182tPoh);
 checkWeightsAndCg('172S', c172sPoh);
+checkWeightsAndCg('162', c162Poh);
 
 // --- Loading stations -------------------------------------------------------
 // Arms must march aft down the cabin, each baggage arm must sit inside its own
@@ -323,15 +341,22 @@ function checkStations(
     }
   }
 
-  const [front, rear] = Object.values(layouts)[0];
+  // Usable fuel sits in the wings, so its arm must fall inside the span of
+  // the loading stations rather than ahead of or behind the whole cabin. The
+  // 162 has only two stations (it seats two side by side), so this cannot
+  // assume a rear-seat row exists.
+  const stations = Object.values(layouts)[0];
+  const first = stations[0];
+  const last = stations[stations.length - 1];
   check(
-    usableFuelArmIn > front.armIn && usableFuelArmIn < rear.armIn,
-    `${label}: usable fuel arm ${usableFuelArmIn} is not between the front (${front.armIn}) and rear (${rear.armIn}) seats`
+    usableFuelArmIn > first.armIn && usableFuelArmIn < last.armIn,
+    `${label}: usable fuel arm ${usableFuelArmIn} is not between the first (${first.id} at ${first.armIn}) and last (${last.id} at ${last.armIn}) loading stations`
   );
 }
 
 checkStations('182T', C182T_STATIONS, C182T_USABLE_FUEL_ARM_IN);
 checkStations('172S', C172S_STATIONS, C172S_USABLE_FUEL_ARM_IN);
+checkStations('162', C162_STATIONS, C162_USABLE_FUEL_ARM_IN);
 
 // --- Baggage ----------------------------------------------------------------
 function checkBaggage(
@@ -364,6 +389,7 @@ function checkBaggage(
 
 checkBaggage('182T', C182T_BAGGAGE_LIMITS);
 checkBaggage('172S', C172S_BAGGAGE_LIMITS);
+checkBaggage('162', C162_BAGGAGE_LIMITS);
 
 // --- Declared corrections ---------------------------------------------------
 // Each entry in POH_CORRECTIONS must actually be present in the data, and must
@@ -388,7 +414,7 @@ for (const correction of POH_CORRECTIONS) {
 }
 
 // --- Report -----------------------------------------------------------------
-const cruiseCells = [c182tCruise, c172sCruise].reduce(
+const cruiseCells = [c182tCruise, c172sCruise, c162Cruise].reduce(
   (total, table) =>
     total +
     table.blocks.reduce(

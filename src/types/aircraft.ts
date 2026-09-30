@@ -8,7 +8,7 @@
  * aircraft may be added before its book is transcribed, and the screens must
  * keep saying so when it is.
  */
-import type { CruiseTable, FieldWeightBlock } from '../data/poh/types.ts';
+import type { CruiseTable, FieldCorrections, FieldWeightBlock } from '../data/poh/types.ts';
 
 export type DataSource = 'placeholder' | 'poh';
 
@@ -93,6 +93,11 @@ export interface AircraftProfile {
   targetPowerPresets: TargetPowerPreset[];
   takeoff: readonly FieldWeightBlock[];
   landing: readonly FieldWeightBlock[];
+  /**
+   * The wind and surface corrections printed beneath this aircraft's own
+   * field tables. They are NOT the same across types — see FieldCorrections.
+   */
+  fieldCorrections: FieldCorrections;
 
   performanceDataSource: DataSource;
   weightBalanceDataSource: DataSource;

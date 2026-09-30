@@ -13,7 +13,7 @@
  * baggage compartment empty and the rear seat unoccupied. None of that is
  * modelled here, so do not use this profile to plan a utility-category flight.
  */
-import type { ClimbRow, FieldWeightBlock, PohDocument } from './types.ts';
+import type { ClimbRow, FieldCorrections, FieldWeightBlock, PohDocument } from './types.ts';
 
 /**
  * SHORT FIELD TAKEOFF DISTANCE, Figure 5-5, pages 5-15 / 5-16 / 5-17.
@@ -187,14 +187,12 @@ export const C172S_START_TAXI_TAKEOFF_FUEL_GAL = 1.4;
  * Wind and surface corrections, from the notes on Figures 5-5 and 5-11.
  * Note the grass factor differs between takeoff (15%) and landing (45%).
  */
-export const C172S_FIELD_CORRECTIONS = {
-  headwindPercentPer9Kts: -10,
-  tailwindPercentPer2Kts: 10,
-  maxTailwindKts: 10,
+export const C172S_FIELD_CORRECTIONS: FieldCorrections = {
+  headwind: { percent: 10, perKts: 9 },
+  tailwind: { percent: 10, perKts: 2, maxKts: 10 },
   dryGrassPercentOfGroundRoll: { takeoff: 15, landing: 45 },
-  /** Landing with flaps up: add 9 KIAS to approach speed and 35% to distances. */
-  flapsUpLandingPercent: 35,
-} as const;
+  flapsUpLanding: { extraKias: 9, percent: 35 },
+};
 
 /** Section 2 page 2-9 and Section 6 Figure 6-5 (page 6-13). */
 export const C172S_DATUM = {

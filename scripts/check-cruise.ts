@@ -11,6 +11,10 @@
  */
 import { c182tCruise } from '../src/data/poh/c182t-cruise.ts';
 import { aircraftProfiles } from '../src/data/aircraft-profiles.ts';
+import { c162Cruise } from '../src/data/poh/c162-cruise.ts';
+import { C162_FIELD_CORRECTIONS, c162PohBase } from '../src/data/poh/c162.ts';
+import { C172S_FIELD_CORRECTIONS, c172sPohBase } from '../src/data/poh/c172s.ts';
+import { lookupFieldPerformance } from '../src/lib/performance.ts';
 import type { CruiseTable, FixedPitchCruiseRow } from '../src/data/poh/types.ts';
 import { availableRpms, solveAtRpm, solveCruise } from '../src/lib/cruise.ts';
 
@@ -261,6 +265,94 @@ console.log('\nTarget power presets against each aircraft\'s cruise ceiling');
       );
     }
   }
+}
+
+// --- The books' own worked examples ----------------------------------------
+// Each POH works at least one example in its own prose, or quotes a figure on
+// its specification page. Those are printed numbers computed by the
+// manufacturer from the same tables, so reproducing them checks the
+// transcription and the interpolation together, against a source that is
+// independent of both.
+
+console.log("\n162 sample problem, page 5-6: 6000 ft, ISA+20, 2750 RPM -> 64%, 108 kt, 6.0 gph");
+{
+  // The book's glossary defines standard temperature as 15°C at sea level
+  // less 2°C per 1000 ft, so 20°C above standard at 6000 ft is 23°C.
+  const solution = solveAtRpm(c162Cruise, 2750, 6000, 23, 75);
+  if (!solution) throw new Error('no solution');
+  expect('162 sample power', solution.percentPower, 64);
+  expect('162 sample KTAS', solution.ktas, 108);
+  expect('162 sample fuel flow', solution.gph, 6.0);
+}
+
+console.log('\n162 specification page, 1-3: sea level takeoff at 1320 lb -> 640 ft / 1138 ft');
+{
+  // The specification quotes a single figure with no temperature, but it
+  // falls exactly halfway between the sheet's 10°C and 20°C columns, which
+  // is the 15°C standard day.
+  const takeoff = lookupFieldPerformance(c162PohBase.takeoff, {
+    pressureAltitudeFt: 0,
+    oatC: 15,
+    weightLbs: 1320,
+    windComponentKts: 0,
+    corrections: C162_FIELD_CORRECTIONS,
+  });
+  if (!takeoff) throw new Error('no takeoff figures');
+  expect('162 spec ground roll', takeoff.groundRollFt, 640);
+  expect('162 spec distance over 50 ft', takeoff.distanceOver50ftFt, 1138);
+}
+
+console.log('\n172S specification page, 1-3: sea level takeoff at 2550 lb -> 960 ft / ~1630 ft');
+{
+  const takeoff = lookupFieldPerformance(c172sPohBase.takeoff, {
+    pressureAltitudeFt: 0,
+    oatC: 15,
+    weightLbs: 2550,
+    windComponentKts: 0,
+    corrections: C172S_FIELD_CORRECTIONS,
+  });
+  if (!takeoff) throw new Error('no takeoff figures');
+  expect('172S spec ground roll', takeoff.groundRollFt, 960);
+  // The book rounds this one to the nearest 10 on its specification page.
+  near('172S spec distance over 50 ft', takeoff.distanceOver50ftFt, 1630, 5);
+}
+
+// --- Wind corrections are per-aircraft --------------------------------------
+// The 162 corrects 10% per 7 knots of headwind where the Cessna singles use
+// 9 knots, so the same wind must shorten its distances MORE. Applying one
+// book's rates to another aircraft is a silent error this pins down.
+console.log('\nWind correction uses each aircraft\'s own rate');
+{
+  const at = (blocks: typeof c162PohBase.takeoff, corrections: typeof C162_FIELD_CORRECTIONS, wind: number) =>
+    lookupFieldPerformance(blocks, {
+      pressureAltitudeFt: 0,
+      oatC: 15,
+      weightLbs: 99999,
+      windComponentKts: wind,
+      corrections,
+    });
+
+  const c162Still = at(c162PohBase.takeoff, C162_FIELD_CORRECTIONS, 0);
+  const c162Wind = at(c162PohBase.takeoff, C162_FIELD_CORRECTIONS, 7);
+  if (!c162Still || !c162Wind) throw new Error('no takeoff figures');
+  // 7 knots is exactly one full correction step for the 162: 10% off.
+  near('162 loses 10% of ground roll in 7 kt headwind', c162Wind.groundRollFt, c162Still.groundRollFt * 0.9, 1);
+
+  const c172Still = at(c172sPohBase.takeoff, C172S_FIELD_CORRECTIONS, 0);
+  const c172Wind = at(c172sPohBase.takeoff, C172S_FIELD_CORRECTIONS, 7);
+  if (!c172Still || !c172Wind) throw new Error('no takeoff figures');
+  // 7 knots is only 7/9 of a step for the 172S, so it keeps more of its roll.
+  near(
+    '172S loses only 7/9 of that in the same wind',
+    c172Wind.groundRollFt,
+    c172Still.groundRollFt * (1 - (7 / 9) * 0.1),
+    1
+  );
+  expect(
+    'the two rates genuinely differ',
+    c162Wind.groundRollFt / c162Still.groundRollFt < c172Wind.groundRollFt / c172Still.groundRollFt,
+    true
+  );
 }
 
 console.log(`\nRan ${checks} checks.`);

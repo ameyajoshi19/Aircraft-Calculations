@@ -85,6 +85,26 @@ export type CruiseTable =
       blocks: readonly CruiseAltitudeBlock<FixedPitchCruiseRow>[];
     };
 
+/**
+ * The corrections printed beneath a takeoff or landing table.
+ *
+ * These are per-aircraft, not universal. The 182T and 172S correct 10% per
+ * 9 knots of headwind and per 2 knots of tailwind; the lighter, slower 162
+ * uses 7 knots and 1.5 knots for the same 10%. The 162 also publishes NO
+ * grass-runway correction, where both Cessnas do — which is why that field is
+ * optional rather than defaulted.
+ */
+export interface FieldCorrections {
+  /** Distances decrease `percent` for each `perKts` knots of headwind. */
+  headwind: { percent: number; perKts: number };
+  /** Distances increase `percent` for each `perKts` knots of tailwind, up to `maxKts`. */
+  tailwind: { percent: number; perKts: number; maxKts: number };
+  /** Percent of the GROUND ROLL to add on dry grass, where the book gives one. */
+  dryGrassPercentOfGroundRoll?: { takeoff: number; landing: number };
+  /** Landing with flaps up: extra approach speed and the distance penalty. */
+  flapsUpLanding?: { extraKias: number; percent: number };
+}
+
 /** [pressure altitude ft, ground roll ft, total ft to clear a 50 ft obstacle]. */
 export type FieldRow = readonly [pressureAltitudeFt: number, groundRollFt: number | null, over50ftFt: number | null];
 

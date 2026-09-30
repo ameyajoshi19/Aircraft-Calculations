@@ -1,6 +1,8 @@
-import { interpolate1D } from '@/lib/interpolation';
-import type { FieldWeightBlock } from '@/data/poh/types';
-import type { AircraftProfile } from '@/types/aircraft';
+// Relative imports with explicit extensions, so scripts/ can load this module
+// under plain Node to check it against the books' own worked examples.
+import { interpolate1D } from './interpolation.ts';
+import type { FieldCorrections, FieldWeightBlock } from '../data/poh/types.ts';
+import type { AircraftProfile } from '../types/aircraft.ts';
 
 const ISA_SEA_LEVEL_C = 15;
 /** Standard atmosphere lapse rate, °C per 1000 ft. */
@@ -127,10 +129,12 @@ export interface FieldPerformanceResult {
  * Note these tables are indexed by ACTUAL OAT (the POH prints 0/10/20/30/40
  * °C columns), unlike the cruise tables which use ISA-relative columns.
  *
- * The wind correction is the note printed beneath the table: distances
- * decrease 10% per 9 knots of headwind, and increase 10% per 2 knots of
- * tailwind. Cells the POH leaves blank — where climb performance after
- * lift-off is below 150 fpm — yield no result rather than an extrapolation.
+ * The wind correction comes from the note printed beneath that aircraft's own
+ * table, passed in rather than assumed: the Cessna singles decrease distances
+ * 10% per 9 knots of headwind, but the lighter 162 does so per 7 knots, and
+ * using one aircraft's rates on another under- or over-corrects. Cells the POH
+ * leaves blank — where climb performance after lift-off is below 150 fpm —
+ * yield no result rather than an extrapolation.
  */
 export function lookupFieldPerformance(
   blocks: readonly FieldWeightBlock[],
@@ -139,6 +143,7 @@ export function lookupFieldPerformance(
     oatC: number;
     weightLbs: number;
     windComponentKts: number;
+    corrections: FieldCorrections;
   }
 ): FieldPerformanceResult | null {
   if (blocks.length === 0) return null;
@@ -205,10 +210,11 @@ export function lookupFieldPerformance(
 
   const span = upperBlock.weightLbs - lowerBlock.weightLbs;
   const t = span === 0 ? 0 : (bracketed - lowerBlock.weightLbs) / span;
+  const { headwind, tailwind } = options.corrections;
   const windFactor =
     options.windComponentKts >= 0
-      ? 1 - (options.windComponentKts / 9) * 0.1
-      : 1 + (Math.abs(options.windComponentKts) / 2) * 0.1;
+      ? 1 - (options.windComponentKts / headwind.perKts) * (headwind.percent / 100)
+      : 1 + (Math.abs(options.windComponentKts) / tailwind.perKts) * (tailwind.percent / 100);
 
   return {
     groundRollFt: Math.round((low.roll + t * (high.roll - low.roll)) * windFactor),

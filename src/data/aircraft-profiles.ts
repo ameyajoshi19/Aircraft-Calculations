@@ -9,7 +9,17 @@
  * and check the profiles against their own books.
  */
 import {
+  C162_BAGGAGE_LIMITS,
+  C162_FIELD_CORRECTIONS,
+  C162_STATIONS,
+  C162_USABLE_FUEL_ARM_IN,
+  C162_USABLE_FUEL_GAL,
+  c162PohBase,
+} from './poh/c162.ts';
+import { c162Cruise } from './poh/c162-cruise.ts';
+import {
   C172S_BAGGAGE_LIMITS,
+  C172S_FIELD_CORRECTIONS,
   C172S_STATIONS,
   C172S_USABLE_FUEL_ARM_IN,
   C172S_USABLE_FUEL_GAL,
@@ -18,6 +28,7 @@ import {
 import { c172sCruise } from './poh/c172s-cruise.ts';
 import {
   C182T_BAGGAGE_LIMITS,
+  C182T_FIELD_CORRECTIONS,
   C182T_STATIONS,
   C182T_USABLE_FUEL_ARM_IN,
   C182T_USABLE_FUEL_GAL,
@@ -104,6 +115,7 @@ const cessna182t: AircraftProfile = {
   targetPowerPresets: C182T_TARGET_POWER_PRESETS,
   takeoff: c182tPohBase.takeoff,
   landing: c182tPohBase.landing,
+  fieldCorrections: C182T_FIELD_CORRECTIONS,
 
   performanceDataSource: 'poh',
   weightBalanceDataSource: 'poh',
@@ -174,6 +186,7 @@ const cessna172sp: AircraftProfile = {
   targetPowerPresets: C172S_TARGET_POWER_PRESETS,
   takeoff: c172sPohBase.takeoff,
   landing: c172sPohBase.landing,
+  fieldCorrections: C172S_FIELD_CORRECTIONS,
 
   performanceDataSource: 'poh',
   weightBalanceDataSource: 'poh',
@@ -184,6 +197,84 @@ const cessna172sp: AircraftProfile = {
     'standard figure; replace it with this airframe\'s weighing record before flight planning.',
 };
 
-export const aircraftProfiles: AircraftProfile[] = [cessna182t, cessna172sp];
+/**
+ * The 162 publishes only three RPM settings per altitude, and which three
+ * changes above 8000 ft, so this list spans the whole range the sheets cover.
+ */
+const RPM_PRESETS_162 = [
+  { rpm: 2150 },
+  { rpm: 2250, label: 'Economy' },
+  { rpm: 2350 },
+  { rpm: 2450 },
+  { rpm: 2550, label: 'Balanced' },
+  { rpm: 2650 },
+  { rpm: 2750, label: 'Performance' },
+];
+
+/**
+ * The 162's table bottoms out around 36% power, so its Economy setting sits
+ * well below the 55% that counts as low cruise on the bigger Cessnas. 75% is
+ * the sheet's own cap.
+ */
+const C162_TARGET_POWER_PRESETS = [
+  { percentPower: 45, rpm: 2250, label: 'Economy' },
+  { percentPower: 60, rpm: 2550, label: 'Balanced' },
+  { percentPower: 75, rpm: 2750, label: 'Performance' },
+];
+
+const cessna162: AircraftProfile = {
+  id: 'c162-g300',
+  shortName: 'C162',
+  model: 'Cessna 162 Skycatcher / Garmin G300',
+
+  // Section 1 page 1-3: Teledyne Continental O-200D, 100 BHP at 2750 RPM,
+  // fixed-pitch propeller.
+  engineHp: 100,
+  maxSpeedKts: 118,
+  serviceCeilingFt: 14625,
+
+  emptyWeightLbs: c162PohBase.standardEmptyWeightLbs,
+  // Implied by the sample loading problem on page 6-13: 834 lb at a moment of
+  // 110.1 thousand lb-in gives 132.0 in. Replace it together with the empty
+  // weight when a weighing record is available.
+  emptyWeightArm: 132.0,
+  maxGrossWeightLbs: c162PohBase.maxTakeoffWeightLbs,
+  maxLandingWeightLbs: c162PohBase.maxLandingWeightLbs,
+  usableFuelGal: C162_USABLE_FUEL_GAL.standard,
+  fuelLbsPerGal: 6,
+  fuelArm: C162_USABLE_FUEL_ARM_IN,
+
+  stations: C162_STATIONS.standardSeating.map((s) => ({
+    id: s.id,
+    label: s.label,
+    arm: s.armIn,
+    maxWeight: 'maxWeightLbs' in s ? s.maxWeightLbs : undefined,
+  })),
+  envelope: c162PohBase.cgEnvelope.map((p) => ({
+    weight: p.weightLbs,
+    forwardArm: p.forwardArmIn,
+    aftArm: p.aftArmIn,
+  })),
+  // One baggage area, so the book states no combined limit.
+  combinedWeightLimits: [],
+
+  cruise: c162Cruise,
+  rpmPresets: RPM_PRESETS_162,
+  targetPowerPresets: C162_TARGET_POWER_PRESETS,
+  takeoff: c162PohBase.takeoff,
+  landing: c162PohBase.landing,
+  fieldCorrections: C162_FIELD_CORRECTIONS,
+
+  performanceDataSource: 'poh',
+  weightBalanceDataSource: 'poh',
+  pohDocumentNumber: c162PohBase.documentNumber,
+  sourceNote:
+    'Performance and W&B limits from POH 162PHUS-04. The Section 5 tables are scanned ' +
+    'images in that book, so they were read by eye rather than extracted — read twice ' +
+    "and consistency-checked. Empty weight is the book's standard figure; replace it " +
+    "with this airframe's weighing record before flight planning.",
+};
+
+export const aircraftProfiles: AircraftProfile[] = [cessna182t, cessna172sp, cessna162];
 
 export const defaultAircraftProfileId = cessna182t.id;
