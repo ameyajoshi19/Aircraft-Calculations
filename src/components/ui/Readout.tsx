@@ -18,7 +18,10 @@ export function Display({ label, value, note }: { label: string; value: string; 
       <Text variant="label" tone="muted">
         {label}
       </Text>
-      <Text variant="display">{value}</Text>
+      {/* A four-digit RPM wrapped to two lines at 360px before this. */}
+      <Text variant="display" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+        {value}
+      </Text>
       {note ? (
         <Text variant="caption" tone="faint">
           {note}
@@ -49,11 +52,13 @@ export function DisplayPair({ children }: { children: ReactNode }) {
 export function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
     <View style={styles.stat}>
-      <Text variant="label" tone="muted">
+      <Text variant="label" tone="muted" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
         {label}
       </Text>
       <View style={styles.statValueRow}>
-        <Text variant="stat">{value}</Text>
+        <Text variant="stat" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+          {value}
+        </Text>
         {unit ? (
           <Text variant="unit" tone="faint">
             {unit}
@@ -93,10 +98,13 @@ export function DataRow({
 const styles = StyleSheet.create({
   rule: { height: 1 },
   display: { flex: 1, gap: space.xs },
-  pair: { flexDirection: 'row', gap: space.xl },
+  // Was xl. At 360px that left each column 79px while a four-digit RPM needs
+  // 82, so "2200" wrapped. Narrowing the gaps buys the width back without
+  // touching the type size.
+  pair: { flexDirection: 'row', gap: space.sm },
   vRule: { width: 1, alignSelf: 'stretch' },
   stat: { flex: 1, gap: space.xs },
   statValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 3 },
-  statRow: { flexDirection: 'row', gap: space.lg },
+  statRow: { flexDirection: 'row', gap: space.md },
   dataRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
 });

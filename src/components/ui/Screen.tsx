@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { Text } from '@/components/ui/Text';
 import { useTheme } from '@/design/theme';
 import { space } from '@/design/tokens';
@@ -10,11 +11,17 @@ export function Screen({
   title,
   subtitle,
   footer,
+  info,
   children,
 }: {
   title: string;
   subtitle?: string;
   footer?: string;
+  /**
+   * The assumptions behind this screen's figures, shown behind an ⓘ in the
+   * header rather than as a paragraph on the screen. See InfoSheet.
+   */
+  info?: { title: string; notes: string[] };
   children: ReactNode;
 }) {
   const { colors } = useTheme();
@@ -26,13 +33,16 @@ export function Screen({
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}>
-          <View style={styles.header}>
-            <Text variant="title">{title}</Text>
-            {subtitle ? (
-              <Text variant="caption" tone="faint" style={styles.subtitle}>
-                {subtitle}
-              </Text>
-            ) : null}
+          <View style={styles.headerRow}>
+            <View style={styles.header}>
+              <Text variant="title">{title}</Text>
+              {subtitle ? (
+                <Text variant="caption" tone="faint" style={styles.subtitle}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+            {info ? <InfoSheet title={info.title} notes={info.notes} /> : null}
           </View>
 
           {children}
@@ -68,14 +78,18 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: space.xl,
     paddingTop: space.md,
-    paddingBottom: space.xxxl,
-    gap: space.xxl,
+    paddingBottom: space.xl,
+    // Was xxl. The screens are designed to fit a phone without scrolling, and
+    // the gaps between sections were the cheapest place to find that room —
+    // cheaper than type size, which stays as it is.
+    gap: space.xl,
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
   },
-  header: { gap: 2 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: space.md },
+  header: { gap: 2, flex: 1 },
   subtitle: { letterSpacing: 0.4 },
   footer: { textAlign: 'center', marginTop: space.sm },
-  section: { gap: space.lg },
+  section: { gap: space.md },
 });

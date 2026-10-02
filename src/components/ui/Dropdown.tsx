@@ -17,20 +17,26 @@ export function Dropdown<T extends string | number>({
   value,
   options,
   onChange,
+  compact = false,
 }: {
   label: string;
   value: T;
   options: DropdownOption<T>[];
   onChange: (value: T) => void;
+  /**
+   * Stacks the label above the control instead of placing it alongside, so a
+   * dropdown sitting beside a Stepper lines up with it.
+   */
+  compact?: boolean;
 }) {
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
   const selected = options.find((o) => o.value === value);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.row}>
-        <Text variant="label" tone="muted">
+    <View style={compact ? styles.compactContainer : styles.container}>
+      <View style={compact ? styles.compactRow : styles.row}>
+        <Text variant="label" tone={compact ? 'faint' : 'muted'} numberOfLines={1}>
           {label}
         </Text>
         <Pressable
@@ -39,6 +45,7 @@ export function Dropdown<T extends string | number>({
           accessibilityLabel={`${label}: ${selected?.label ?? ''}`}
           style={({ pressed }) => [
             styles.trigger,
+            compact && styles.compactTrigger,
             { borderColor: colors.hairline, opacity: pressed ? 0.7 : 1 },
           ]}>
           <Text variant="value">{selected?.label ?? '—'}</Text>
@@ -98,6 +105,11 @@ export function Dropdown<T extends string | number>({
 const styles = StyleSheet.create({
   container: { gap: space.xs },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  // Compact: label above the control, matching a Stepper so the two line up
+  // when they share a row.
+  compactContainer: { flex: 1 },
+  compactRow: { gap: space.xs },
+  compactTrigger: { justifyContent: 'space-between' },
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',

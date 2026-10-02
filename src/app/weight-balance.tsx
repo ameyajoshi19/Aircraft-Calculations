@@ -34,7 +34,15 @@ export default function WeightBalanceScreen() {
     <Screen
       title="Weight & Balance"
       subtitle={`${profile.shortName}${profile.tailNumber ? ` · ${profile.tailNumber}` : ''}`}
-      footer="Planning only · Verify against the POH">
+      info={{
+        title: 'About weight & balance',
+        notes: [
+          `Station arms, the CG envelope and the usable fuel arm all come from Section 6 of the ${profile.shortName} POH.`,
+          `Empty weight is ${profile.emptyWeightLbs.toLocaleString()} lb at ${profile.emptyWeightArm.toFixed(1)} in. Unless you have entered this airframe's weighing record on the Aircraft screen, that is the book's STANDARD figure and your aeroplane will differ.`,
+          'The forward CG limit varies with weight and is interpolated between the points the book publishes; the aft limit is constant.',
+          'Planning only. Verify every figure against the POH before flight.',
+        ],
+      }}>
       {profile.weightBalanceDataSource === 'placeholder' ? (
         <Notice tone="warning">
           Placeholder arms, envelope and empty weight — not yet taken from the POH or this
@@ -76,13 +84,8 @@ export default function WeightBalanceScreen() {
           tone={outOfEnvelope ? 'danger' : 'ink'}
         />
         <DataRow
-          label="Empty weight"
-          value={`${profile.emptyWeightLbs.toLocaleString()} lb @ ${profile.emptyWeightArm.toFixed(1)} in`}
-        />
-        <DataRow label="Max gross" value={`${profile.maxGrossWeightLbs.toLocaleString()} lb`} />
-        <DataRow
           label="Margin to gross"
-          value={`${(profile.maxGrossWeightLbs - result.totalWeightLbs).toLocaleString()} lb`}
+          value={`${(profile.maxGrossWeightLbs - result.totalWeightLbs).toLocaleString()} of ${profile.maxGrossWeightLbs.toLocaleString()} lb`}
           tone={overGross ? 'danger' : 'ink'}
         />
       </Section>

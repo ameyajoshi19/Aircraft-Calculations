@@ -6,7 +6,7 @@ import { Notice } from '@/components/ui/Notice';
 import { Display, DisplayPair, Rule, Stat, StatRow } from '@/components/ui/Readout';
 import { Screen, Section } from '@/components/ui/Screen';
 import { Segment } from '@/components/ui/Segment';
-import { SliderField } from '@/components/ui/SliderField';
+import { FieldRow, Stepper } from '@/components/ui/Stepper';
 import { Text } from '@/components/ui/Text';
 import { useAircraft } from '@/context/aircraft-context';
 import { useFlight } from '@/context/flight-context';
@@ -14,28 +14,34 @@ import { useProfileState } from '@/hooks/use-profile-state';
 import { useTheme } from '@/design/theme';
 import { space } from '@/design/tokens';
 import { solveCruise } from '@/lib/cruise';
-import { isaTemperatureC } from '@/lib/performance';
+import { computeFuelPlan, isaTemperatureC } from '@/lib/performance';
 
 const AUTO = 'auto' as const;
-
-/** Reserve the Range figure is quoted on, matching the POH's Range Profile chart. */
 const RESERVE_MINUTES = 45;
 
-export default function CruiseScreen() {
-  const { selectedProfile: profile } = useAircraft();
-  const { colors } = useTheme();
-  const { fuelOnBoardGal, isFullTanks } = useFlight();
+function hoursMinutes(hours: number): string {
+  const total = Math.round(hours * 60);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
 
-  // A fixed-pitch aircraft has one control. RPM is not a second thing to pick
-  // alongside the power — it is the answer, so the screen has no MP readout
-  // and the RPM dropdown means "pin this instead of solving for it".
+/**
+ * Cruise and fuel on one screen.
+ *
+ * They were two tabs asking for the same three things — altitude, target power
+ * and RPM — and then showing overlapping answers. One set of conditions
+ * produces one cruise setting, and endurance and range are simply what that
+ * setting does with the fuel aboard, so they belong to the same reading.
+ */
+export default function PlanScreen() {
+  const { selectedProfile: profile } = useAircraft();
+  const { fuelOnBoardGal, setFuelOnBoardGal, isFullTanks } = useFlight();
+  const { colors } = useTheme();
+
   const fixedPitch = profile.cruise.propeller === 'fixed-pitch';
   const powerUnit = `% ${profile.cruise.percentPowerLabel}`;
 
   const [altitudeFt, setAltitudeFt] = useState(8000);
   const [isaDeviationC, setIsaDeviationC] = useState(0);
-  // Both are aircraft-specific: the presets differ, and an RPM pinned on one
-  // type may not exist in another's tables at all.
   const [targetPercentPower, setTargetPercentPower] = useProfileState(
     profile,
     (p) => p.targetPowerPresets[0].percentPower
@@ -54,6 +60,14 @@ export default function CruiseScreen() {
         rpm: rpmChoice === AUTO ? undefined : rpmChoice,
       }),
     [profile.cruise, altitude, oatC, targetPercentPower, rpmChoice]
+  );
+
+  const plan = useMemo(
+    () =>
+      solution
+        ? computeFuelPlan(fuelOnBoardGal, solution.gph, solution.ktas, RESERVE_MINUTES)
+        : null,
+    [solution, fuelOnBoardGal]
   );
 
   const powerOptions = useMemo(
@@ -82,31 +96,23 @@ export default function CruiseScreen() {
     [profile.rpmPresets, fixedPitch]
   );
 
-  // Range on 45 minutes' reserve, matching the basis of the POH's own Range
-  // Profile chart. Without the reserve this reads roughly 100 nm further than
-  // the book — an optimistic number is the last thing this screen should show.
-  // It still excludes start, taxi and climb fuel, which the Fuel tab covers.
-  //
-  // Computed from the fuel actually on board, not the tank capacity: the two
-  // are the same only when you depart full, and the difference is all in the
-  // optimistic direction.
-  const rangeNm = useMemo(() => {
-    if (!solution || solution.gph <= 0) return null;
-    const reserveGal = (RESERVE_MINUTES / 60) * solution.gph;
-    const usable = Math.max(fuelOnBoardGal - reserveGal, 0);
-    return Math.round((usable / solution.gph) * solution.ktas);
-  }, [solution, fuelOnBoardGal]);
-
-  // A pinned RPM that overshoots the target is the pilot's own choice, not a
-  // shortfall, so only an undershoot is worth warning about.
   const shortOfTarget =
     solution !== null && !solution.targetAchieved && solution.percentPower < targetPercentPower;
 
   return (
     <Screen
-      title="Cruise"
+      title="Plan"
       subtitle={`${profile.shortName}${profile.tailNumber ? ` · ${profile.tailNumber}` : ''}`}
-      footer="Planning only · Verify against the POH">
+      info={{
+        title: 'About these figures',
+        notes: [
+          `Cruise settings are read from the POH's own tables and interpolated between them — never extrapolated past the ends of a chart.`,
+          `Range and endurance are computed from the ${fuelOnBoardGal} gal actually on board${isFullTanks ? ', which is full tanks' : ''}, on a ${RESERVE_MINUTES} minute reserve. That matches the basis of the book's Range Profile chart.`,
+          'They assume cruise for the whole flight and exclude the fuel for start, taxi, takeoff and climb.',
+          `Maximum cruise power for this aircraft is ${profile.cruise.maxCruisePercentPower}${powerUnit}. Settings above it appear in the book only to aid interpolation and are not offered here.`,
+          'Planning only. Verify every figure against the POH before flight.',
+        ],
+      }}>
       {profile.performanceDataSource === 'placeholder' ? (
         <Notice tone="warning">
           Placeholder cruise data — not transcribed from a POH. Do not plan on these figures.
@@ -114,32 +120,53 @@ export default function CruiseScreen() {
       ) : null}
 
       <Section>
-        <SliderField
-          label="Altitude"
-          valueLabel={`${altitude.toLocaleString()} ft`}
-          min={0}
-          max={profile.serviceCeilingFt}
-          step={500}
-          value={altitude}
-          onChange={setAltitudeFt}
-        />
-        <SliderField
-          label="Temperature"
-          valueLabel={`ISA ${isaDeviationC >= 0 ? '+' : ''}${isaDeviationC}°`}
-          hint={`${oatC.toFixed(1)}°C OAT`}
-          min={-20}
-          max={30}
-          step={1}
-          value={isaDeviationC}
-          onChange={setIsaDeviationC}
-        />
+        <FieldRow>
+          <Stepper
+            label="Altitude"
+            valueLabel={`${altitude.toLocaleString()} ft`}
+            min={0}
+            max={profile.serviceCeilingFt}
+            step={500}
+            value={altitude}
+            onChange={setAltitudeFt}
+          />
+          <Stepper
+            label="Temperature"
+            valueLabel={`ISA ${isaDeviationC >= 0 ? '+' : ''}${isaDeviationC}°`}
+            hint={`${oatC.toFixed(0)}°C OAT`}
+            min={-20}
+            max={30}
+            step={1}
+            value={isaDeviationC}
+            onChange={setIsaDeviationC}
+          />
+        </FieldRow>
+
         <Segment
           label="Target power"
           options={powerOptions}
           value={targetPercentPower}
           onChange={setTargetPercentPower}
         />
-        <Dropdown label="RPM" value={rpmChoice} options={rpmOptions} onChange={setRpmChoice} />
+
+        <FieldRow>
+          <Dropdown
+            label="RPM"
+            value={rpmChoice}
+            options={rpmOptions}
+            onChange={setRpmChoice}
+            compact
+          />
+          <Stepper
+            label="Fuel on board"
+            valueLabel={`${fuelOnBoardGal} gal`}
+            min={0}
+            max={profile.usableFuelGal}
+            step={1}
+            value={fuelOnBoardGal}
+            onChange={setFuelOnBoardGal}
+          />
+        </FieldRow>
       </Section>
 
       <Rule />
@@ -161,28 +188,28 @@ export default function CruiseScreen() {
       <Rule />
 
       <Section label="Expect">
+        {/* Two rows of two rather than four across: at 360px "ENDURANCE"
+            broke onto a second line and shoved its figure out of alignment. */}
         <StatRow>
           <Stat label="Power" value={solution ? String(solution.percentPower) : '—'} unit={powerUnit} />
           <Stat label="TAS" value={solution ? String(solution.ktas) : '—'} unit="kts" />
-          <Stat label="Range" value={rangeNm !== null ? String(rangeNm) : '—'} unit="nm" />
         </StatRow>
-
-        <Text variant="caption" tone="faint">
-          {`Range on ${fuelOnBoardGal} gal${isFullTanks ? ' (full tanks)' : ''}, ${RESERVE_MINUTES} min reserve, ` +
-            'excluding start, taxi and climb fuel.'}
-        </Text>
+        <StatRow>
+          <Stat
+            label="Endurance"
+            value={plan ? hoursMinutes(plan.flightEnduranceHours) : '—'}
+            unit="h:mm"
+          />
+          <Stat label="Range" value={plan ? String(Math.round(plan.rangeNm)) : '—'} unit="nm" />
+        </StatRow>
 
         {solution ? (
           <View style={[styles.targetRow, { borderColor: colors.hairline }]}>
             <Text variant="caption" tone="muted">
-              Target {solution.targetPercentPower}%
+              {`Target ${solution.targetPercentPower}% · ${fuelOnBoardGal} gal · ${RESERVE_MINUTES} min reserve`}
             </Text>
             <Text variant="caption" tone={solution.targetAchieved ? 'ok' : 'warning'}>
-              {solution.targetAchieved
-                ? 'Target met'
-                : shortOfTarget
-                  ? `Highest the POH publishes here is ${solution.percentPower}%`
-                  : `This setting gives ${solution.percentPower}%`}
+              {solution.targetAchieved ? 'Met' : shortOfTarget ? `Max ${solution.percentPower}%` : 'Over'}
             </Text>
           </View>
         ) : null}
@@ -191,9 +218,9 @@ export default function CruiseScreen() {
       {shortOfTarget && solution ? (
         <Notice tone="warning">
           {solution.limitedBy === 'max-cruise-power'
-            ? `${solution.targetPercentPower}% is above the POH's maximum cruise power of ${profile.cruise.maxCruisePercentPower}${powerUnit}. Settings above it are printed only to aid interpolation.`
+            ? `${solution.targetPercentPower}% is above the POH's maximum cruise power of ${profile.cruise.maxCruisePercentPower}${powerUnit}.`
             : rpmChoice === AUTO
-              ? `No published setting reaches ${solution.targetPercentPower}% at this altitude and temperature. Descend, or accept ${solution.percentPower}%.`
+              ? `No published setting reaches ${solution.targetPercentPower}% here. Descend, or accept ${solution.percentPower}%.`
               : `${rpmChoice} RPM cannot reach ${solution.targetPercentPower}% here. Try a higher RPM, or accept ${solution.percentPower}%.`}
         </Notice>
       ) : null}

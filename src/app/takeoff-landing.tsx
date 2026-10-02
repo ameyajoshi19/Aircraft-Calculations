@@ -1,10 +1,9 @@
 import { useState } from 'react';
 
 import { Notice } from '@/components/ui/Notice';
-import { NumberField } from '@/components/ui/NumberField';
 import { Rule, Stat, StatRow } from '@/components/ui/Readout';
 import { Screen, Section } from '@/components/ui/Screen';
-import { SliderField } from '@/components/ui/SliderField';
+import { FieldRow, Stepper } from '@/components/ui/Stepper';
 import { useAircraft } from '@/context/aircraft-context';
 import { useProfileState } from '@/hooks/use-profile-state';
 import { isaTemperatureC, lookupFieldPerformance } from '@/lib/performance';
@@ -44,48 +43,65 @@ export default function TakeoffLandingScreen() {
     <Screen
       title="Takeoff & Landing"
       subtitle={`${profile.shortName}${profile.tailNumber ? ` · ${profile.tailNumber}` : ''}`}
-      footer="Planning only · Verify against the POH">
+      info={{
+        title: 'About these figures',
+        notes: [
+          'Short field technique as specified in Section 4 of the POH, on a paved, level, dry runway, with zero wind before the wind correction is applied.',
+          `Wind correction uses this aircraft's own table notes: distances decrease ${profile.fieldCorrections.headwind.percent}% for each ${profile.fieldCorrections.headwind.perKts} knots of headwind, and increase ${profile.fieldCorrections.tailwind.percent}% for each ${profile.fieldCorrections.tailwind.perKts} knots of tailwind up to ${profile.fieldCorrections.tailwind.maxKts} knots.`,
+          grass
+            ? `On dry grass, add ${grass.takeoff}% of the takeoff ground roll and ${grass.landing}% of the landing ground roll.`
+            : `The ${profile.shortName} POH publishes no dry grass correction, so these figures are for a paved runway only.`,
+          'The POH tabulates landing at the maximum landing weight only. A lighter aeroplane therefore gets the heavier figure, which errs long.',
+          'Planning only. Verify every figure against the POH before flight.',
+        ],
+      }}>
       {profile.performanceDataSource === 'placeholder' ? (
         <Notice tone="warning">Placeholder distance tables — not transcribed from a POH.</Notice>
       ) : null}
 
       <Section>
-        <SliderField
-          label="Pressure altitude"
-          valueLabel={`${altitudeFt.toLocaleString()} ft`}
-          min={0}
-          max={8000}
-          step={250}
-          value={altitudeFt}
-          onChange={setAltitudeFt}
-        />
-        <SliderField
-          label="Temperature"
-          valueLabel={`${oatC}°C`}
-          hint={`ISA ${isaDeviation >= 0 ? '+' : ''}${isaDeviation.toFixed(0)}°`}
-          min={-20}
-          max={45}
-          step={1}
-          value={oatC}
-          onChange={setOatC}
-        />
-        <SliderField
-          label="Wind component"
-          valueLabel={`${windKts >= 0 ? '+' : ''}${windKts} kt`}
-          hint={windKts >= 0 ? 'headwind' : 'tailwind'}
-          min={-10}
-          max={20}
-          step={1}
-          value={windKts}
-          onChange={setWindKts}
-        />
-        <NumberField
-          label="Weight"
-          unit="lb"
-          max={profile.maxGrossWeightLbs}
-          value={weightLbs}
-          onChange={setWeightLbs}
-        />
+        <FieldRow>
+          <Stepper
+            label="Pressure alt"
+            valueLabel={`${altitudeFt.toLocaleString()} ft`}
+            min={0}
+            max={8000}
+            step={250}
+            value={altitudeFt}
+            onChange={setAltitudeFt}
+          />
+          <Stepper
+            label="Temperature"
+            valueLabel={`${oatC}°C`}
+            hint={`ISA ${isaDeviation >= 0 ? '+' : ''}${isaDeviation.toFixed(0)}°`}
+            min={-20}
+            max={45}
+            step={1}
+            value={oatC}
+            onChange={setOatC}
+          />
+        </FieldRow>
+        <FieldRow>
+          <Stepper
+            label="Wind"
+            valueLabel={`${windKts >= 0 ? '+' : ''}${windKts} kt`}
+            hint={windKts >= 0 ? 'headwind' : 'tailwind'}
+            min={-10}
+            max={20}
+            step={1}
+            value={windKts}
+            onChange={setWindKts}
+          />
+          <Stepper
+            label="Weight"
+            valueLabel={`${weightLbs.toLocaleString()} lb`}
+            min={Math.round(profile.emptyWeightLbs)}
+            max={profile.maxGrossWeightLbs}
+            step={25}
+            value={weightLbs}
+            onChange={setWeightLbs}
+          />
+        </FieldRow>
       </Section>
 
       <Rule />
@@ -98,8 +114,7 @@ export default function TakeoffLandingScreen() {
           </StatRow>
         ) : (
           <Notice tone="danger">
-            The POH publishes no takeoff figures for these conditions. Above 30°C the charts stop
-            early, because climb performance after lift-off drops below 150 fpm.
+            No takeoff figures published for these conditions.
           </Notice>
         )}
       </Section>
@@ -119,13 +134,6 @@ export default function TakeoffLandingScreen() {
           </Notice>
         ) : null}
       </Section>
-
-      <Notice tone="warning">
-        {'Short field technique, paved level dry runway, zero wind before the wind correction. ' +
-          (grass
-            ? `Dry grass adds ${grass.takeoff}% of the takeoff ground roll and ${grass.landing}% of the landing ground roll.`
-            : `${profile.shortName} POH publishes no dry grass correction — these figures are for a paved runway only.`)}
-      </Notice>
     </Screen>
   );
 }

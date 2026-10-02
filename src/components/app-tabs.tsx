@@ -5,21 +5,21 @@ import type { ColorValue } from 'react-native';
 import { useTheme } from '@/design/theme';
 import { fonts } from '@/design/tokens';
 
+// Four tabs, not five: cruise and fuel were asking for the same conditions
+// and showing overlapping answers, so they are one "Plan" screen now.
 const ICONS = {
   index: 'speedometer',
   'weight-balance': 'scale',
   'takeoff-landing': 'airplane',
-  fuel: 'water',
   aircraft: 'list',
 } as const;
 
 type Route = keyof typeof ICONS;
 
 const TITLES: Record<Route, string> = {
-  index: 'Cruise',
+  index: 'Plan',
   'weight-balance': 'W&B',
   'takeoff-landing': 'Takeoff',
-  fuel: 'Fuel',
   aircraft: 'Aircraft',
 };
 
