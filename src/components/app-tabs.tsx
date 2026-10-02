@@ -107,8 +107,5 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     letterSpacing: 0.2,
     textAlign: 'center',
-    // Space Grotesk at 11px needs about 13px of line box; anything tighter
-    // clips the descenders.
-    includeFontPadding: false,
   },
 });
