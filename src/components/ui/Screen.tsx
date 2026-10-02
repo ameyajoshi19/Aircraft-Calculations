@@ -78,11 +78,12 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: space.xl,
     paddingTop: space.md,
-    paddingBottom: space.xl,
-    // Was xxl. The screens are designed to fit a phone without scrolling, and
-    // the gaps between sections were the cheapest place to find that room —
-    // cheaper than type size, which stays as it is.
-    gap: space.xl,
+    paddingBottom: space.md,
+    // Was xxl, then xl. The screens are designed to fit a phone without
+    // scrolling, and the gaps between sections are the cheapest place to find
+    // that room — cheaper than type size, which stays as it is. A notched
+    // iPhone gives 703px of content where an Android phone gave 751.
+    gap: space.md,
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',

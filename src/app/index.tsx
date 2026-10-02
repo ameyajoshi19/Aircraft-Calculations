@@ -203,7 +203,7 @@ export default function PlanScreen() {
           <Stat label="Range" value={plan ? String(Math.round(plan.rangeNm)) : '—'} unit="nm" />
         </StatRow>
 
-        {solution ? (
+        {solution && !shortOfTarget ? (
           <View style={[styles.targetRow, { borderColor: colors.hairline }]}>
             <Text variant="caption" tone="muted">
               {`Target ${solution.targetPercentPower}% · ${fuelOnBoardGal} gal · ${RESERVE_MINUTES} min reserve`}
