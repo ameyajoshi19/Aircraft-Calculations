@@ -8,9 +8,11 @@
     "scheme": "greenarc",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.ameyajoshi.greenarc",
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.ameyajoshi.greenarc",
       "adaptiveIcon": {
         "backgroundColor": "#121214",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
