@@ -1,5 +1,5 @@
 {
-  "name": "aircraft-calculations",
+  "name": "green-arc",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
@@ -45,7 +45,8 @@
     "check:cruise": "node --experimental-strip-types scripts/check-cruise.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p scripts",
     "verify:182t": "node --experimental-strip-types scripts/verify-poh-source.ts 182t",
-    "verify:172s": "node --experimental-strip-types scripts/verify-poh-source.ts 172s"
+    "verify:172s": "node --experimental-strip-types scripts/verify-poh-source.ts 172s",
+    "brand": "node scripts/generate-brand-assets.mjs"
   },
   "private": true
 }
