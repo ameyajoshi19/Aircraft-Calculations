@@ -126,12 +126,18 @@ export const squareIcon = () =>
   svg('-14 -14 128 128', `<rect x="-14" y="-14" width="128" height="128" fill="${COLOURS.face}"/>${markBody()}`);
 
 /**
- * Android adaptive foreground: transparent, and small enough to survive the
- * mask. Android shows 72dp of a 108dp canvas, so the dial is kept inside
- * roughly 62% of the width and the background layer supplies the face.
+ * Android adaptive foreground: transparent, with the background layer
+ * supplying the face.
+ *
+ * Android shows 72dp of a 108dp canvas, so the dial is drawn to about 66%
+ * of the width. That is the visible area rather than the smaller 66dp
+ * guaranteed-safe circle, which is a deliberate choice: every coloured arc
+ * finishes inside 48% of the width, so the only thing an aggressive mask
+ * can reach is the tip of a tick mark. Sizing to the safe circle instead
+ * left the dial visibly smaller than the iOS icon for no gain.
  */
-export const androidForeground = () => svg('-28 -28 156 156', markBody());
-export const androidMonochrome = () => svg('-28 -28 156 156', monoBody('#000000'));
+export const androidForeground = () => svg('-23 -23 146 146', markBody());
+export const androidMonochrome = () => svg('-23 -23 146 146', monoBody('#000000'));
 
 /** Splash: the dial keeps its own face so it reads on either background. */
 export const splashIcon = () =>

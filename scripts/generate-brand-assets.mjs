@@ -2,13 +2,20 @@
  * Renders every Green Arc brand asset from scripts/brand-mark.mjs.
  *
  *   node scripts/generate-brand-assets.mjs
+ *   node scripts/generate-brand-assets.mjs --preview
+ *
+ * --preview additionally writes assets/brand/preview.png, showing each asset
+ * composited the way the platform actually composites it. That exists because
+ * two of these layers are TRANSPARENT and only legible over the background
+ * they ship with: viewing android-icon-foreground.png on a light page makes
+ * its cream needle look invisible when nothing is wrong with it.
  *
  * Rasterising needs a headless Chromium. This resolves Playwright from the
  * project first and then from a global install, and says so plainly if it
  * finds neither — the SVG sources are written either way, so the vectors can
  * always be regenerated even where the PNGs cannot.
  */
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -86,6 +93,55 @@ async function main() {
     await browser.close();
   }
   console.log(`rendered ${PNGS.length} PNGs`);
+
+  if (process.argv.includes('--preview')) await preview(browserFor(chromium));
+}
+
+function browserFor(chromium) {
+  return chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox'] });
+}
+
+/**
+ * Each asset over the background it actually ships against. The Android
+ * layers are masked, because launchers mask them.
+ */
+async function preview(browserPromise) {
+  const browser = await browserPromise;
+  const tile = (label, inner) =>
+    `<figure><div class="t">${inner}</div><figcaption>${label}</figcaption></figure>`;
+  // Inlined rather than linked: a page delivered through setContent has an
+  // opaque origin, and Chromium refuses to fetch file:// subresources into it.
+  const inline = async (f) =>
+    `data:image/png;base64,${(await readFile(path.join(images, f))).toString('base64')}`;
+  const src = Object.fromEntries(
+    await Promise.all(
+      ['android-icon-foreground.png', 'android-icon-monochrome.png', 'icon.png', 'splash-icon.png']
+        .map(async (f) => [f, await inline(f)])
+    )
+  );
+  const img = (f) => src[f];
+  const html = `<!doctype html><meta charset="utf-8"><style>
+    body{margin:0;padding:28px;background:#F8F6F3;font:12px/1.4 system-ui,sans-serif;color:#79736B;
+         display:flex;gap:22px}
+    figure{margin:0;text-align:center} figcaption{margin-top:10px;max-width:180px}
+    .t{width:180px;height:180px;position:relative;overflow:hidden}
+    .t img{position:absolute;inset:0;width:100%;height:100%}
+    .circle{border-radius:50%} .squircle{border-radius:44px}
+    .adaptive{background:${COLOURS.face}}
+    </style>
+    ${tile('adaptive icon, circle mask', `<div class="t adaptive circle"><img src="${img('android-icon-foreground.png')}"></div>`)}
+    ${tile('adaptive icon, squircle mask', `<div class="t adaptive squircle"><img src="${img('android-icon-foreground.png')}"></div>`)}
+    ${tile('themed icon, dark', `<div class="t circle" style="background:#1A1A1C"><img src="${img('android-icon-monochrome.png')}" style="filter:invert(1) opacity(.85)"></div>`)}
+    ${tile('themed icon, light', `<div class="t circle" style="background:#DCD6CA"><img src="${img('android-icon-monochrome.png')}"></div>`)}
+    ${tile('icon.png', `<div class="t squircle"><img src="${img('icon.png')}"></div>`)}
+    ${tile('splash, light', `<div class="t" style="background:#F8F6F3"><img src="${img('splash-icon.png')}"></div>`)}
+    ${tile('splash, dark', `<div class="t" style="background:#0E0E10"><img src="${img('splash-icon.png')}"></div>`)}`;
+  const page = await browser.newPage({ viewport: { width: 1480, height: 260 }, deviceScaleFactor: 2 });
+  await page.setContent(html, { waitUntil: 'load' });
+  const out = path.join(vectors, 'preview.png');
+  await page.screenshot({ path: out, fullPage: true });
+  await browser.close();
+  console.log(`  ${path.relative(root, out)}`);
 }
 
 await main();
